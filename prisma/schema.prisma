@@ -1,0 +1,252 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  events        Event[]   @relation("EventOwner")
+  participations Participant[]
+  bookingPages  BookingPage[]
+  integrations  Integration[]
+  availability  Availability[]
+  accounts      Account[]
+  sessions      Session[]
+  notifications Notification[]
+  groupsLed     Group[]   @relation("GroupLeader")
+  memberships   GroupMember[]
+  sentRequests     MeetingRequest[] @relation("SentRequests")
+  receivedRequests MeetingRequest[] @relation("ReceivedRequests")
+  rescheduleProposals RescheduleProposal[]
+  
+  // Profile
+  status        String    @default("available") // available, busy, away, offline
+  department    String?
+  title         String?
+  
+  // Settings
+  timeZone      String    @default("UTC")
+  plan          String    @default("FREE") // FREE, PROFESSIONAL, BUSINESS
+  darkMode      Boolean   @default(false)
+  
+  // Lunch Settings
+  lunchEnabled  Boolean   @default(false)
+  lunchStart    String    @default("12:00")
+  lunchEnd      String    @default("13:00")
+  
+  // Notification Settings (CSV of minutes, e.g. "5,15")
+  meetingReminders String @default("5") 
+}
+
+// Organization/Company Group
+model Group {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  inviteCode  String   @unique @default(cuid())
+  createdAt   DateTime @default(now())
+  
+  leaderId    String
+  leader      User     @relation("GroupLeader", fields: [leaderId], references: [id])
+  members     GroupMember[]
+}
+
+// Group Membership with approval workflow
+model GroupMember {
+  id          String   @id @default(cuid())
+  userId      String
+  groupId     String
+  status      String   @default("pending") // pending, approved, rejected
+  role        String   @default("member")  // leader, admin, member
+  joinedAt    DateTime @default(now())
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group       Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, groupId])
+}
+
+// NextAuth Account model for OAuth
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+// NextAuth Session model
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// In-app notifications
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type      String   // booking, reminder, update, cancelled
+  title     String
+  message   String
+  link      String?  // Optional link to navigate to
+  read      Boolean  @default(false)
+  
+  createdAt DateTime @default(now())
+}
+
+model MeetingRequest {
+  id        String   @id @default(cuid())
+  
+  requesterId String
+  requester   User     @relation("SentRequests", fields: [requesterId], references: [id])
+  
+  recipientId String
+  recipient   User     @relation("ReceivedRequests", fields: [recipientId], references: [id])
+  
+  title     String
+  startTime DateTime
+  endTime   DateTime
+  duration  Int      // minutes
+  
+  locationType String // VIDEO, PHONE, IN_PERSON
+  locationDetails String?
+  message   String?
+  
+  status    String   @default("PENDING") // PENDING, ACCEPTED, DECLINED
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Event {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  startTime   DateTime
+  endTime     DateTime
+  location    String?
+  locationType String? // VIDEO, PHONE, IN_PERSON, OTHER
+  color       String?  @default("#4A90E2")
+  status      String   @default("SCHEDULED") // SCHEDULED, CANCELLED, COMPLETED
+  recurrence  String?  @default("NONE") // NONE, or RRule string (e.g., "FREQ=WEEKLY;INTERVAL=2")
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  ownerId     String
+  owner       User     @relation("EventOwner", fields: [ownerId], references: [id])
+  
+  participants Participant[]
+  proposals    RescheduleProposal[]
+}
+
+model Participant {
+  id        String  @id @default(cuid())
+  email     String
+  name      String?
+  status    String  @default("PENDING") // PENDING, ACCEPTED, DECLINED, MAYBE
+  
+  eventId   String
+  event     Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  
+  userId    String?
+  user      User?   @relation(fields: [userId], references: [id])
+  
+  responseNote String? // Reason for decline or other notes
+
+  @@unique([eventId, email])
+}
+
+model RescheduleProposal {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  
+  proposerId String
+  proposer   User     @relation(fields: [proposerId], references: [id])
+  
+  startTime DateTime? // proposed start (optional if just general note, but usually required)
+  endTime   DateTime? // proposed end
+  
+  note      String?
+  status    String   @default("PENDING") // PENDING, ACCEPTED, DECLINED
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BookingPage {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  description String?
+  duration    Int      @default(30) // in minutes
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model Integration {
+  id        String   @id @default(cuid())
+  provider  String   // GOOGLE, OUTLOOK, ZOOM, etc.
+  accountId String
+  accessToken String?
+  refreshToken String?
+  expiresAt DateTime?
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  
+  @@unique([userId, provider])
+}
+
+model Availability {
+  id        String  @id @default(cuid())
+  dayOfWeek Int     // 0 = Sunday, 1 = Monday, etc.
+  startTime String  // HH:MM format
+  endTime   String  // HH:MM format
+  isEnabled Boolean @default(true)
+  
+  userId    String
+  user      User    @relation(fields: [userId], references: [id])
+
+  @@unique([userId, dayOfWeek])
+}
+
