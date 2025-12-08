@@ -16,8 +16,18 @@ export async function DELETE(req: NextRequest) {
         }
 
         // Map frontend IDs to database provider names
+        // Create a special case for Google Calendar to clean up both provider types
+        if (provider === 'google-calendar') {
+            await prisma.account.deleteMany({
+                where: {
+                    userId: session.user.id,
+                    provider: { in: ['google', 'google-calendar'] }
+                }
+            });
+            return NextResponse.json({ success: true });
+        }
+
         let dbProvider = provider;
-        if (provider === 'google-calendar') dbProvider = 'google';
         if (provider === 'outlook') {
             // Check both potential names for Outlook
             await prisma.account.deleteMany({

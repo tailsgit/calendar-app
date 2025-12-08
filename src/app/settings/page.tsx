@@ -104,7 +104,7 @@ export default function SettingsPage() {
                 const accountProviders = data.accounts?.map((a: any) => a.provider) || [];
                 setIntegrations(prev => prev.map(i => {
                     let isConnected = false;
-                    if (i.id === 'google-calendar') isConnected = accountProviders.includes('google');
+                    if (i.id === 'google-calendar') isConnected = accountProviders.includes('google-calendar');
                     // Provider ID for Outlook can be microsoft-entra-id (new) or azure-ad (old) depending on adapter
                     if (i.id === 'outlook') isConnected = accountProviders.includes('microsoft-entra-id') || accountProviders.includes('azure-ad');
 
@@ -200,7 +200,7 @@ export default function SettingsPage() {
 
         // Connect logic
         if (id === 'google-calendar') {
-            signIn('google', { callbackUrl: '/settings' });
+            signIn('google-calendar', { callbackUrl: '/settings' });
         } else if (id === 'outlook') {
             signIn('microsoft-entra-id', { callbackUrl: '/settings' });
         } else {

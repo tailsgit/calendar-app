@@ -4,7 +4,10 @@ export async function getAccessToken(userId: string) {
     const account = await prisma.account.findFirst({
         where: {
             userId,
-            provider: 'google',
+            provider: { in: ['google-calendar', 'google'] },
+        },
+        orderBy: {
+            provider: 'desc', // 'google-calendar' comes after 'google', so DESC picks it first
         },
     });
 

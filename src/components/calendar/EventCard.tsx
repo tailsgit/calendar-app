@@ -23,16 +23,30 @@ export default function EventCard({
   top: customTop,
   isLunch
 }: EventProps) {
-  // Calculate height and position based on time
-  // This logic assumes the parent container is relative and 1 hour = 60px
+  // Clamp height to end of the day to prevent overflow
   const startHour = startTime.getHours();
   const startMin = startTime.getMinutes();
-  const durationMin = (endTime.getTime() - startTime.getTime()) / (1000 * 60);
+
+  const startOfDay = new Date(startTime);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(startOfDay);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  let visualEndTime = endTime;
+  if (endTime > endOfDay) {
+    visualEndTime = endOfDay;
+  }
+
+  let durationMin = (visualEndTime.getTime() - startTime.getTime()) / (1000 * 60);
+
+  // Enforce minimum height for visibility (e.g. 20 mins/px)
+  if (durationMin < 20) durationMin = 20;
 
   const top = customTop !== undefined ? customTop : ((startHour * 60) + startMin);
-  const height = durationMin; // 1 min = 1px height
+  const height = durationMin;
 
   const isPast = endTime < new Date();
+  const isMultiDay = endTime.getDate() !== startTime.getDate() || endTime.getMonth() !== startTime.getMonth();
 
   return (
     <div
@@ -44,7 +58,7 @@ export default function EventCard({
         color: status === 'PROPOSED' ? color : 'white',
         borderLeft: `4px solid ${color}`,
         border: status === 'PROPOSED' ? `2px dashed ${color}` : undefined,
-        borderLeftStyle: status === 'PROPOSED' ? 'solid' : undefined, // Keep left border solid
+        borderLeftStyle: status === 'PROPOSED' ? 'solid' : undefined,
       }}
       onClick={(e) => {
         e.stopPropagation();
@@ -59,6 +73,7 @@ export default function EventCard({
         </div>
         <div className="event-time">
           {format(startTime, 'h:mm a')} - {format(endTime, 'h:mm a')}
+          {isMultiDay && <span style={{ opacity: 0.8, marginLeft: '4px' }}>(+1)</span>}
         </div>
       </div>
 
