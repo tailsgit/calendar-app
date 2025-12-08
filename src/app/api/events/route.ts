@@ -270,9 +270,9 @@ export async function GET(request: Request) {
                     new Date(end),
                     userSettings.lunchStart,
                     userSettings.lunchEnd,
-                    userSettings.lunchSchedule,
                     userIdToFetch,
-                    userSettings.timeZone
+                    userSettings.timeZone,
+                    userSettings.lunchSchedule
                 );
                 finalEvents.push(...lunchEvents);
             }
