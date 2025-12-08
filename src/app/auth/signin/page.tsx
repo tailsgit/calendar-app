@@ -8,7 +8,7 @@ export default function SignInPage() {
       <div className="signin-card">
         <div className="header">
           <span className="logo">📅</span>
-          <h1>Welcome to Calendar</h1>
+          <h1>Welcome to Slotavo</h1>
           <p>Sign in to manage your schedule</p>
         </div>
 

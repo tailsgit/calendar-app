@@ -6,7 +6,7 @@ import Providers from "@/components/Providers";
 import CommandPalette from "@/components/ui/CommandPalette";
 
 export const metadata: Metadata = {
-  title: "Calendar App",
+  title: "Slotavo",
   description: "Smart scheduling for everyone",
 };
 
