@@ -12,8 +12,6 @@ import Modal from '../ui/Modal';
 import NewMeetingForm from '../meeting/NewMeetingForm';
 import EventModal from './EventModal';
 import MeetingObjectDetail from '../meeting/MeetingObjectDetail';
-import ConflictResolverModal from './ConflictResolverModal';
-import { ConflictGroup } from '@/lib/conflict-detection';
 
 interface Event {
   id: string;
@@ -39,7 +37,6 @@ export default function CalendarContainer() {
   const [eventModalMode, setEventModalMode] = useState<'view' | 'edit' | 'create'>('view');
 
   const [selectedObject, setSelectedObject] = useState<Event | null>(null);
-  const [selectedConflict, setSelectedConflict] = useState<ConflictGroup | null>(null);
 
   const handleReschedule = async (event: Event, newStart: Date) => {
     // Calculate new end time based on duration
@@ -253,17 +250,17 @@ export default function CalendarContainer() {
           events={events}
           onEventClick={handleEventClick}
           onTimeSlotClick={handleTimeSlotClick}
-          onConflictClick={setSelectedConflict}
         />
       )}
 
-      {/* ... (Conflict Modal) ... */}
-      <ConflictResolverModal
-        isOpen={!!selectedConflict}
-        onClose={() => setSelectedConflict(null)}
-        conflictGroup={selectedConflict}
-        onReschedule={handleReschedule}
-      />
+      {viewMode === 'day' && (
+        <DayView
+          currentDate={currentDate}
+          events={events}
+          onEventClick={handleEventClick}
+          onTimeSlotClick={handleTimeSlotClick}
+        />
+      )}
 
       {viewMode === 'day' && (
         <DayView
