@@ -300,46 +300,12 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        // Validate Availability
-        const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            select: {
-                timeZone: true,
-                availability: true
-            }
-        });
-
+        // Availability check removed to allow owner to schedule freely
+        /*
         if (user) {
-            const requestStart = new Date(startTime);
-            const requestEnd = new Date(endTime);
-            const timeZone = user.timeZone || 'UTC';
-
-            // Safer way to get day index in specific timezone
-            const dateInTz = new Date(requestStart.toLocaleString('en-US', { timeZone }));
-            const dayIndex = dateInTz.getDay();
-
-            const startMinutes = dateInTz.getHours() * 60 + dateInTz.getMinutes();
-            // Calculate duration in minutes
-            const duration = (requestEnd.getTime() - requestStart.getTime()) / (1000 * 60);
-            const endMinutes = startMinutes + duration;
-
-            const dayConfig = user.availability.find(a => a.dayOfWeek === dayIndex);
-
-            if (!dayConfig || !dayConfig.isEnabled) {
-                return NextResponse.json({ error: 'You are not available on this day' }, { status: 400 });
-            }
-
-            const [availStartHour, availStartMin] = dayConfig.startTime.split(':').map(Number);
-            const [availEndHour, availEndMin] = dayConfig.endTime.split(':').map(Number);
-            const availStartMinutes = availStartHour * 60 + availStartMin;
-            const availEndMinutes = availEndHour * 60 + availEndMin;
-
-            if (startMinutes < availStartMinutes || endMinutes > availEndMinutes) {
-                return NextResponse.json({
-                    error: `You are only available between ${dayConfig.startTime} and ${dayConfig.endTime}`
-                }, { status: 400 });
-            }
+           ... validation logic ...
         }
+        */
 
         const event = await prisma.event.create({
             data: {
