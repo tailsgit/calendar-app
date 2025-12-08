@@ -77,7 +77,7 @@ export default function TopBar() {
       <style jsx>{`
         .topbar {
           height: var(--topbar-height, 64px);
-          background-color: var(--color-bg-main);
+          background-color: var(--color-bg-secondary);
           border-bottom: 1px solid var(--color-border);
           display: flex;
           align-items: center;
@@ -85,7 +85,7 @@ export default function TopBar() {
           padding: 0 var(--spacing-xl);
           position: fixed;
           top: 0;
-          left: var(--sidebar-width, 280px);
+          left: calc(var(--sidebar-width) + 2 * var(--spacing-md)); /* Account for floating sidebar margin + gap */
           right: 0;
           z-index: 40;
           transition: left var(--transition-normal, 0.25s ease);
@@ -101,7 +101,7 @@ export default function TopBar() {
         .search-bar {
           display: flex;
           align-items: center;
-          background-color: var(--color-bg-secondary);
+          background-color: var(--color-bg-main);
           padding: 0.5rem 1rem;
           border-radius: var(--radius-full);
           width: 400px;

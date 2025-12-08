@@ -10,6 +10,7 @@ interface EventProps {
   status?: string; // SCHEDULED, PENDING, ACCEPTED, DECLINED
   onClick?: () => void;
   top?: number; // Optional override for positioning
+  isLunch?: boolean;
 }
 
 export default function EventCard({
@@ -19,7 +20,8 @@ export default function EventCard({
   color = 'var(--color-accent)',
   status,
   onClick,
-  top: customTop
+  top: customTop,
+  isLunch
 }: EventProps) {
   // Calculate height and position based on time
   // This logic assumes the parent container is relative and 1 hour = 60px
@@ -29,6 +31,8 @@ export default function EventCard({
 
   const top = customTop !== undefined ? customTop : ((startHour * 60) + startMin);
   const height = durationMin; // 1 min = 1px height
+
+  const isPast = endTime < new Date();
 
   return (
     <div
@@ -73,7 +77,9 @@ export default function EventCard({
           overflow: hidden;
           cursor: pointer;
           transition: transform 0.1s;
-          opacity: 0.9;
+          cursor: pointer;
+          transition: transform 0.1s;
+          opacity: ${isPast ? 0.25 : (isLunch ? 0.65 : 1)};
           z-index: 1;
         }
         

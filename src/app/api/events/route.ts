@@ -77,17 +77,49 @@ function generateLunchEvents(
     lunchStart: string,
     lunchEnd: string,
     userId: string,
-    timeZone: string
+    timeZone: string,
+    lunchSchedule?: string | null
 ) {
     const events: any[] = [];
-    const [startHour, startMin] = lunchStart.split(':').map(Number);
-    const [endHour, endMin] = lunchEnd.split(':').map(Number);
+    const [defStartHour, defStartMin] = lunchStart.split(':').map(Number);
+    const [defEndHour, defEndMin] = lunchEnd.split(':').map(Number);
+
+    // Parse schedule if exists
+    let schedule: Record<string, { start: string, end: string, enabled: boolean }> = {};
+    try {
+        if (lunchSchedule) {
+            schedule = JSON.parse(lunchSchedule);
+        }
+    } catch (e) {
+        console.error('Failed to parse lunch schedule', e);
+    }
 
     // We iterate from "start" day to "end" day
     let current = startOfDay(start);
     const endTime = end;
 
     while (current <= endTime) {
+        // Check day specific schedule
+        // date-fns provides 0=Sun, 1=Mon...6=Sat
+        const dayIndex = current.getDay();
+        const dayConfig = schedule[dayIndex.toString()];
+
+        // If specific day config exists:
+        // - if enabled=false, skip
+        // - if enabled=true (or undefined), use specific times
+        // If no config, fall back to default start/end (since lunchEnabled is true globally)
+
+        if (dayConfig && dayConfig.enabled === false) {
+            current = addDays(current, 1);
+            continue;
+        }
+
+        const lStartStr = dayConfig ? dayConfig.start : lunchStart;
+        const lEndStr = dayConfig ? dayConfig.end : lunchEnd;
+
+        const [startHour, startMin] = lStartStr.split(':').map(Number);
+        const [endHour, endMin] = lEndStr.split(':').map(Number);
+
         // 1. Create a string representation of the *Target Wall-Clock Time*
         //    date-fns-tz `fromZonedTime` takes a Date (interpreted as wall clock) or string.
         //    Constructing a string "YYYY-MM-DD HH:mm:ss" is robust.
@@ -109,11 +141,11 @@ function generateLunchEvents(
                     description: 'Scheduled lunch break',
                     startTime: lStart.toISOString(),
                     endTime: lEnd.toISOString(),
-                    color: '#F4A261', // Distinct orange/clay color for lunch
+                    color: '#6366F1', // Indigo for all events
+                    isLunch: true,
                     locationType: 'IN_PERSON',
                     status: 'BUSY',
                     ownerId: userId,
-                    isLunch: true,
                     participants: []
                 });
             }
@@ -229,7 +261,7 @@ export async function GET(request: Request) {
         if (userIdToFetch) {
             const userSettings = await prisma.user.findUnique({
                 where: { id: userIdToFetch },
-                select: { lunchEnabled: true, lunchStart: true, lunchEnd: true, timeZone: true }
+                select: { lunchEnabled: true, lunchStart: true, lunchEnd: true, lunchSchedule: true, timeZone: true }
             });
 
             if (userSettings?.lunchEnabled && start && end) {
@@ -238,6 +270,7 @@ export async function GET(request: Request) {
                     new Date(end),
                     userSettings.lunchStart,
                     userSettings.lunchEnd,
+                    userSettings.lunchSchedule,
                     userIdToFetch,
                     userSettings.timeZone
                 );
@@ -316,7 +349,7 @@ export async function POST(request: Request) {
                 endTime: new Date(endTime),
                 locationType,
                 ownerId: session.user.id,
-                color: '#4A90E2', // Default color
+                color: '#6366F1', // Default Indigo
                 status: 'SCHEDULED',
             },
         });

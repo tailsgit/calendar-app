@@ -11,6 +11,7 @@ interface Event {
   startTime: string;
   endTime: string;
   color: string;
+  isLunch?: boolean;
 }
 
 interface WeekViewProps {
@@ -98,7 +99,8 @@ export default function WeekView({ currentDate, events, onEventClick, onTimeSlot
                               title={event.title}
                               startTime={new Date(event.startTime)}
                               endTime={new Date(event.endTime)}
-                              color={event.color}
+                              color="var(--color-accent)"
+                              isLunch={event.isLunch}
                               onClick={() => onEventClick?.(event)}
                               top={new Date(event.startTime).getMinutes()} // Relative to hour slot
                             />
@@ -119,21 +121,23 @@ export default function WeekView({ currentDate, events, onEventClick, onTimeSlot
           display: flex;
           flex-direction: column;
           height: calc(100vh - 200px);
-          border: 1px solid var(--color-border);
+          border: 1px solid var(--color-border); /* Variable */
           border-radius: var(--radius-lg);
-          background-color: var(--color-bg-main);
+          background-color: var(--color-bg-secondary); /* Grid Background use Secondary (Dark=Black, Light=Slate) */
           overflow: hidden;
         }
 
         .week-header {
           display: flex;
-          border-bottom: 1px solid var(--color-border);
+          border-bottom: 1px solid var(--color-border); /* Variable */
+          background-color: var(--color-bg-main); /* Header Background (Surface) */
         }
 
         .time-column-header {
           width: 60px;
           flex-shrink: 0;
-          border-right: 1px solid var(--color-border);
+          border-right: 1px solid var(--color-border); /* Variable */
+          background-color: var(--color-bg-main); /* Header Background (Surface) */
         }
 
         .day-header {
@@ -141,6 +145,7 @@ export default function WeekView({ currentDate, events, onEventClick, onTimeSlot
           text-align: center;
           padding: var(--spacing-sm);
           border-right: 1px solid var(--color-border);
+          background-color: var(--color-bg-main); /* Header Background (Surface) */
         }
 
         .day-header:last-child {

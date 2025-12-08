@@ -157,7 +157,7 @@ export default function MultiUserSearch({ selectedUsers, onAddUser, onRemoveUser
                     align-items: center;
                     gap: 8px;
                     padding: 6px 12px;
-                    background: white;
+                    background: var(--color-bg-main);
                     border: 1px solid var(--color-border);
                     border-radius: 24px;
                     min-height: 48px;
@@ -245,6 +245,7 @@ export default function MultiUserSearch({ selectedUsers, onAddUser, onRemoveUser
                     outline: none;
                     font-size: 1rem;
                     background: transparent;
+                    color: var(--color-text-main);
                 }
 
                 .max-indicator {
@@ -262,7 +263,7 @@ export default function MultiUserSearch({ selectedUsers, onAddUser, onRemoveUser
                     left: 0;
                     right: 0;
                     margin-top: 8px;
-                    background: white;
+                    background: var(--color-bg-main);
                     border: 1px solid var(--color-border);
                     border-radius: var(--radius-lg);
                     box-shadow: var(--shadow-lg);

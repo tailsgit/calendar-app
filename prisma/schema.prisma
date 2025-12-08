@@ -49,6 +49,7 @@ model User {
   lunchEnabled  Boolean   @default(false)
   lunchStart    String    @default("12:00")
   lunchEnd      String    @default("13:00")
+  lunchSchedule String?   // JSON string: { "1": { start: "12:00", end: "13:00", enabled: true }, ... }
   
   // Notification Settings (CSV of minutes, e.g. "5,15")
   meetingReminders String @default("5") 

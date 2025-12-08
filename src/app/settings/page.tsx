@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { signIn } from 'next-auth/react';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import AvailabilitySettings from '@/components/settings/AvailabilitySettings';
+import LunchScheduleEditor from '@/components/settings/LunchScheduleEditor';
 import toast from 'react-hot-toast';
 
 interface Integration {
@@ -55,6 +56,8 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [uploading, setUploading] = useState(false);
+    // Removed showLunchModal, driving UI from profile.lunchSchedule existence
+
 
     const [profile, setProfile] = useState({
         name: '',
@@ -67,6 +70,7 @@ export default function SettingsPage() {
         lunchEnabled: false,
         lunchStart: '12:00',
         lunchEnd: '13:00',
+        lunchSchedule: null as string | null, // JSON string
         meetingReminders: '5',
     });
 
@@ -92,6 +96,7 @@ export default function SettingsPage() {
                     lunchEnabled: data.lunchEnabled || false,
                     lunchStart: data.lunchStart || '12:00',
                     lunchEnd: data.lunchEnd || '13:00',
+                    lunchSchedule: data.lunchSchedule || null,
                     meetingReminders: data.meetingReminders || '5',
                 });
 
@@ -360,6 +365,8 @@ export default function SettingsPage() {
                                     type="time"
                                     value={profile.lunchStart}
                                     onChange={(e) => setProfile({ ...profile, lunchStart: e.target.value })}
+                                    disabled={!!profile.lunchSchedule}
+                                    className={!!profile.lunchSchedule ? 'disabled' : ''}
                                 />
                             </div>
                             <div className="form-group">
@@ -368,8 +375,39 @@ export default function SettingsPage() {
                                     type="time"
                                     value={profile.lunchEnd}
                                     onChange={(e) => setProfile({ ...profile, lunchEnd: e.target.value })}
+                                    disabled={!!profile.lunchSchedule}
+                                    className={!!profile.lunchSchedule ? 'disabled' : ''}
                                 />
                             </div>
+                        </div>
+                    )}
+
+                    {profile.lunchEnabled && (
+                        <div style={{ marginBottom: '1rem' }}>
+                            <button
+                                className="btn btn-secondary"
+                                onClick={() => {
+                                    if (profile.lunchSchedule) {
+                                        // Turn Off
+                                        setProfile({ ...profile, lunchSchedule: null });
+                                    } else {
+                                        // Turn On
+                                        setProfile({ ...profile, lunchSchedule: '{}' });
+                                    }
+                                }}
+                                style={{ fontSize: '0.9rem', width: '100%' }}
+                            >
+                                {profile.lunchSchedule ? 'Disable Manual Schedule' : 'Enable Manual Schedule'}
+                            </button>
+
+                            {profile.lunchSchedule && (
+                                <LunchScheduleEditor
+                                    schedule={profile.lunchSchedule}
+                                    onSave={(schedule) => setProfile({ ...profile, lunchSchedule: schedule })}
+                                    defaultStart={profile.lunchStart}
+                                    defaultEnd={profile.lunchEnd}
+                                />
+                            )}
                         </div>
                     )}
 
@@ -436,6 +474,8 @@ export default function SettingsPage() {
                     <AvailabilitySettings />
                 </div>
             </section>
+
+
 
             {/* Calendar Integrations */}
             <section className="settings-section">
@@ -725,6 +765,7 @@ export default function SettingsPage() {
             border-radius: 20px;
             border: 1px solid var(--color-border);
             background: var(--color-bg-main);
+            color: var(--color-text-main);
             cursor: pointer;
             font-size: 0.9rem;
             transition: all 0.2s;

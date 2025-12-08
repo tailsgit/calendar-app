@@ -207,9 +207,9 @@ function TeamCalendarContent() {
               fontSize: '14px',
               fontWeight: 600,
               borderRadius: '8px',
-              border: viewMode === 'calendar' ? '2px solid black' : '2px solid #d1d5db',
-              backgroundColor: viewMode === 'calendar' ? 'white' : 'transparent',
-              color: viewMode === 'calendar' ? 'black' : '#6b7280',
+              border: viewMode === 'calendar' ? '2px solid var(--color-text-main)' : '2px solid var(--color-border)',
+              backgroundColor: viewMode === 'calendar' ? 'var(--color-bg-main)' : 'transparent',
+              color: viewMode === 'calendar' ? 'var(--color-text-main)' : 'var(--color-text-secondary)',
               cursor: 'pointer',
               transition: 'all 0.2s',
               outline: 'none',
@@ -225,9 +225,9 @@ function TeamCalendarContent() {
               fontSize: '14px',
               fontWeight: 600,
               borderRadius: '8px',
-              border: viewMode === 'heatmap' ? '2px solid black' : '2px solid #d1d5db',
-              backgroundColor: viewMode === 'heatmap' ? 'white' : 'transparent',
-              color: viewMode === 'heatmap' ? 'black' : '#6b7280',
+              border: viewMode === 'heatmap' ? '2px solid var(--color-text-main)' : '2px solid var(--color-border)',
+              backgroundColor: viewMode === 'heatmap' ? 'var(--color-bg-main)' : 'transparent',
+              color: viewMode === 'heatmap' ? 'var(--color-text-main)' : 'var(--color-text-secondary)',
               cursor: 'pointer',
               transition: 'all 0.2s',
               outline: 'none',
@@ -285,7 +285,7 @@ function TeamCalendarContent() {
                     height: 100%;
                     display: flex;
                     flex-direction: column;
-                    background: var(--color-bg-main);
+                    background: var(--color-bg-secondary);
                 }
                 
                 .reschedule-banner {
@@ -300,7 +300,7 @@ function TeamCalendarContent() {
                 .team-header {
                     padding: var(--spacing-lg);
                     border-bottom: 1px solid var(--color-border);
-                    background: white;
+                    background: var(--color-bg-secondary);
                     z-index: 10;
                 }
 

@@ -21,6 +21,7 @@ interface Event {
     startTime: string;
     endTime: string;
     color?: string;
+    isLunch?: boolean;
 }
 
 interface UserCalendarColumnProps {
@@ -107,7 +108,10 @@ export default function UserCalendarColumn({ user, events, currentDate, columnCo
                                         <div
                                             key={event.id}
                                             className="mini-event"
-                                            style={{ backgroundColor: event.color || '#4A90E2' }}
+                                            style={{
+                                                backgroundColor: 'var(--color-accent)',
+                                                opacity: new Date(event.endTime) < new Date() ? 0.25 : (event.isLunch ? 0.65 : 1)
+                                            }}
                                             title={`${event.title} (${format(new Date(event.startTime), 'h:mm')} - ${format(new Date(event.endTime), 'h:mm')})`}
                                         >
                                             {!isCompact && event.title}
@@ -239,7 +243,7 @@ export default function UserCalendarColumn({ user, events, currentDate, columnCo
                 }
 
                 .day-header.today {
-                    background: #EBF5FF;
+                    background: rgba(99, 102, 241, 0.1); /* Indigo tint */
                     color: var(--color-accent);
                     font-weight: 600;
                 }

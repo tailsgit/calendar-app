@@ -42,76 +42,78 @@ export default function Sidebar() {
       <style jsx>{`
         .sidebar {
           width: var(--sidebar-width, 280px);
-          height: 100vh;
-          background-color: var(--color-bg-main);
-          border-right: 1px solid var(--color-border);
-          display: flex;
-          flex-direction: column;
-          position: fixed;
-          left: 0;
-          top: 0;
-          z-index: 50;
-          transition: transform var(--transition-normal, 0.25s ease);
+        height: calc(100vh - 2 * var(--spacing-md)); /* Floating height */
+        background-color: var(--color-bg-main); /* Uses Variable (White/DarkGray) */
+        border: 1px solid var(--color-border); /* Uses Variable */
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-md);
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        left: var(--spacing-md);
+        top: var(--spacing-md);
+        z-index: 50;
+        transition: transform var(--transition-normal, 0.25s ease);
         }
 
         .sidebar-header {
-          padding: var(--spacing-xl) var(--spacing-lg); /* Increased padding */
-          border-bottom: 1px solid var(--color-border);
+          padding: var(--spacing-xl) var(--spacing-lg);
+        border-bottom: 1px solid var(--color-border); 
         }
 
         .logo {
           display: flex;
-          align-items: center;
-          gap: var(--spacing-sm);
-          font-weight: 800; /* Bolder */
-          font-size: 1.5rem;
-          color: var(--color-accent);
-          letter-spacing: -0.5px;
+        align-items: center;
+        gap: var(--spacing-sm);
+        font-weight: 800; /* Bolder */
+        font-size: 1.5rem;
+        color: var(--color-accent);
+        letter-spacing: -0.5px;
         }
 
         .sidebar-nav {
           padding: var(--spacing-xl) var(--spacing-lg); /* Increased padding */
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          gap: var(--spacing-lg); /* Increased gap between items */
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-lg); /* Increased gap between items */
         }
 
         .nav-item {
           display: flex;
-          align-items: center;
-          gap: var(--spacing-md);
-          padding: var(--spacing-md) var(--spacing-lg); /* Adjusted padding for text-only */
-          border-radius: var(--radius-md);
-          color: var(--color-text-secondary);
-          transition: all var(--transition-fast, 0.15s ease);
-          font-weight: 600; /* Slightly bolder for text-only */
-          font-size: 1.05rem; /* Slightly larger */
+        align-items: center;
+        gap: var(--spacing-md);
+        padding: var(--spacing-md) var(--spacing-lg); /* Adjusted padding for text-only */
+        border-radius: var(--radius-md);
+        color: var(--color-text-secondary);
+        transition: all var(--transition-fast, 0.15s ease);
+        font-weight: 600; /* Slightly bolder for text-only */
+        font-size: 1.05rem; /* Slightly larger */
         }
 
         .nav-item:hover {
-          background-color: var(--color-bg-secondary);
-          color: var(--color-text-main);
-          padding-left: var(--spacing-xl); /* Subtle indent on hover */
+          background - color: var(--color-bg-secondary);
+        color: var(--color-text-main);
+        padding-left: var(--spacing-xl); /* Subtle indent on hover */
         }
 
         .nav-item.active {
-          background-color: var(--color-bg-secondary);
-          color: var(--color-accent);
+          background - color: var(--color-bg-secondary);
+        color: var(--color-accent);
         }
 
         .sidebar-footer {
           padding: var(--spacing-lg);
-          border-top: 1px solid var(--color-border);
+        border-top: 1px solid var(--color-border);
         }
 
         @media (max-width: 1024px) {
           .sidebar {
-            transform: translateX(-100%);
+          transform: translateX(-100%);
           }
 
-          .sidebar.open {
-            transform: translateX(0);
+        .sidebar.open {
+          transform: translateX(0);
           }
         }
       `}</style>

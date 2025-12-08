@@ -105,7 +105,7 @@ export default function RequestsPage() {
                 .empty-state {
                     text-align: center;
                     padding: 60px;
-                    background: white;
+                    background: var(--color-bg-main);
                     border-radius: var(--radius-lg);
                     border: 1px dashed var(--color-border);
                 }

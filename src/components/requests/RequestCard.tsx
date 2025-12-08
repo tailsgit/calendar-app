@@ -88,7 +88,7 @@ export default function RequestCard({ request, onRespond }: RequestCardProps) {
 
             <style jsx>{`
                 .request-card {
-                    background: white;
+                    background: var(--color-bg-main);
                     border: 1px solid var(--color-border);
                     border-radius: var(--radius-lg);
                     padding: 20px;

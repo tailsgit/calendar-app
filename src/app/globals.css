@@ -1,14 +1,22 @@
 :root {
-  /* Color Palette - Light Mode */
+  /* Color Palette - Deep Focus Light (60-30-10) */
   --color-bg-main: #FFFFFF;
-  --color-bg-secondary: #F9FAFB;
-  --color-accent: #4A90E2;
-  --color-accent-hover: #357ABD;
-  --color-secondary-brand: #7B68EE;
-  --color-text-main: #333333;
-  --color-text-secondary: #6B7280;
-  --color-text-light: #9CA3AF;
-  --color-border: #E5E7EB;
+  /* 30% Surface (Sidebar, Cards) */
+  --color-bg-secondary: #F8FAFC;
+  /* 60% App Background (Slate-50) */
+  --color-accent: #6366F1;
+  /* 10% Primary Action (Indigo) */
+  --color-accent-hover: #4F46E5;
+  --color-secondary-brand: #818CF8;
+
+  --color-text-main: #1E293B;
+  /* Slate-800 */
+  --color-text-secondary: #64748B;
+  /* Slate-500 */
+  --color-text-light: #94A3B8;
+
+  --color-border: #E2E8F0;
+  /* Slate-200 */
 
   /* Status Colors */
   --color-success: #10B981;
@@ -44,23 +52,33 @@
   --topbar-height: 64px;
 }
 
-/* Dark Mode */
+/* Dark Mode Palette - The "Fix" */
 [data-theme="dark"] {
-  --color-bg-main: #1a1a2e;
-  --color-bg-secondary: #16213e;
-  --color-accent: #6BAAFF;
-  --color-accent-hover: #5C9CE5;
-  --color-secondary-brand: #B8A8FF;
-  --color-text-main: #FFFFFF;
-  --color-text-secondary: #D1D5DB;
-  --color-text-light: #9CA3AF;
-  --color-border: #4B5563;
+  --color-bg-main: #1E1E1E;
+  /* Surface (Sidebar) - Dark Gray */
+  --color-bg-secondary: #121212;
+  /* App Background - Near Black */
+  --color-accent: #6366F1;
+  /* Indigo (Same pop) */
+  --color-accent-hover: #818CF8;
+  /* Lighter Indigo for hover */
+  --color-secondary-brand: #A5B4FC;
+
+  --color-text-main: #E0E0E0;
+  /* High Contrast Off-White */
+  --color-text-secondary: #A0A0A0;
+  /* Medium Gray */
+  --color-text-light: #6B7280;
+
+  --color-border: #333333;
+  /* Subtle Dark Gray Grid */
 
   /* Status colors with better visibility */
   --color-success: #34D399;
   --color-warning: #FBBF24;
   --color-error: #F87171;
 
+  /* Dark Mode Shadows (More opacity) */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
@@ -75,7 +93,9 @@
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   background-color: var(--color-bg-secondary);
+  /* Variable (Slate/Black) */
   color: var(--color-text-main);
+  /* Variable (Slate/OffWhite) */
   line-height: 1.5;
 }
 
@@ -170,7 +190,8 @@ textarea:focus-visible {
 
 .main-content {
   flex: 1;
-  margin-left: var(--sidebar-width);
+  margin-left: calc(var(--sidebar-width) + 2 * var(--spacing-md));
+  /* Account for floating sidebar margin + gap */
   margin-top: var(--topbar-height);
   padding: var(--spacing-xl);
   min-height: calc(100vh - var(--topbar-height));

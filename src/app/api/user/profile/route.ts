@@ -21,8 +21,8 @@ export async function GET(request: NextRequest) {
                 status: true,
                 timeZone: true,
                 lunchEnabled: true,
-                lunchStart: true,
                 lunchEnd: true,
+                lunchSchedule: true,
                 meetingReminders: true,
                 accounts: {
                     select: {
@@ -49,13 +49,13 @@ export async function PUT(request: NextRequest) {
 
         const body = await request.json();
         console.log('[DEBUG] PUT /api/user/profile Body:', body);
-        const { name, department, title, status, timeZone, lunchEnabled, lunchStart, lunchEnd, meetingReminders } = body;
+        const { name, department, title, status, timeZone, lunchEnabled, lunchStart, lunchEnd, meetingReminders, lunchSchedule } = body;
 
         const user = await prisma.user.update({
             where: { id: session.user.id },
             data: {
                 name, department, title, status, timeZone,
-                lunchEnabled, lunchStart, lunchEnd,
+                lunchEnabled, lunchStart, lunchEnd, lunchSchedule,
                 meetingReminders
             },
         });
