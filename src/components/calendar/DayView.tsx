@@ -1,6 +1,8 @@
 "use client";
 
 import { format, addHours, startOfDay, isSameDay } from 'date-fns';
+import EventCard from './EventCard';
+import { calculateEventLayout } from '@/lib/conflict-detection';
 
 interface Event {
   id: string;
@@ -23,18 +25,8 @@ export default function DayView({ currentDate, events, onEventClick, onTimeSlotC
   const hours = Array.from({ length: 17 }, (_, i) => i + 7); // 7 AM - 11 PM
   const dayStart = startOfDay(currentDate);
 
-  const getEventsForHour = (hour: number) => {
-    return events.filter(event => {
-      const eventDate = new Date(event.startTime);
-      return isSameDay(eventDate, currentDate) && eventDate.getHours() === hour;
-    });
-  };
-
-  const getEventDuration = (event: Event) => {
-    const start = new Date(event.startTime);
-    const end = new Date(event.endTime);
-    return (end.getTime() - start.getTime()) / (1000 * 60 * 60); // hours
-  };
+  const dayEvents = events.filter(event => isSameDay(new Date(event.startTime), currentDate));
+  const layoutMap = calculateEventLayout(dayEvents);
 
   return (
     <div className="day-view">
@@ -47,8 +39,8 @@ export default function DayView({ currentDate, events, onEventClick, onTimeSlotC
 
       <div className="day-grid">
         {hours.map(hour => {
-          const hourEvents = getEventsForHour(hour);
           const time = addHours(dayStart, hour);
+          const slotEvents = dayEvents.filter(e => new Date(e.startTime).getHours() === hour);
 
           return (
             <div key={hour} className="hour-row">
@@ -59,31 +51,23 @@ export default function DayView({ currentDate, events, onEventClick, onTimeSlotC
                 className="hour-slot"
                 onClick={() => onTimeSlotClick?.(currentDate, hour)}
               >
-                {hourEvents.map(event => (
-                  <div
-                    key={event.id}
-                    className="day-event"
-                    style={{
-                      backgroundColor: event.color,
-                      height: `${Math.max(getEventDuration(event), 1) * 60}px`
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEventClick?.(event);
-                    }}
-                  >
-                    <div className="event-time">
-                      {format(new Date(event.startTime), 'h:mm a')} - {format(new Date(event.endTime), 'h:mm a')}
-                    </div>
-                    <div className="event-title">{event.title}</div>
-                    {event.locationType && (
-                      <div className="event-location">
-                        {event.locationType === 'VIDEO' ? '📹 Video Call' :
-                          event.locationType === 'PHONE' ? '📞 Phone Call' : '📍 In Person'}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                {slotEvents.map(event => {
+                  const layout = layoutMap.get(event.id) || { left: '0%', width: '100%', zIndex: 1 };
+                  return (
+                    <EventCard
+                      key={event.id}
+                      title={event.title}
+                      startTime={new Date(event.startTime)}
+                      endTime={new Date(event.endTime)}
+                      color={event.color}
+                      onClick={() => onEventClick?.(event)}
+                      top={new Date(event.startTime).getMinutes()}
+                      left={layout.left}
+                      width={layout.width}
+                      zIndex={layout.zIndex}
+                    />
+                  );
+                })}
               </div>
             </div>
           );

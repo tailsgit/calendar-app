@@ -9,86 +9,79 @@ export interface CalendarEvent {
     [key: string]: any; // Allow other properties
 }
 
-export interface ConflictGroup {
-    type: 'conflict';
-    id: string; // Unique ID for the group
-    startTime: Date;
-    endTime: Date;
-    events: CalendarEvent[];
-}
-
-export type RenderableEvent = CalendarEvent | ConflictGroup;
-
 /**
- * Groups overlapping events into ConflictBlocks.
- * Returns an array where items are either a single Event or a ConflictGroup.
+ * Calculates layout styles (left, width) for events, handling visual overlaps.
+ * Accounts for 20px minimum height.
  */
-export function groupEventsForConflict(events: CalendarEvent[]): RenderableEvent[] {
-    if (events.length === 0) return [];
+export function calculateEventLayout(events: CalendarEvent[]): Map<string, { left: string, width: string, zIndex: number }> {
+    const layoutMap = new Map<string, { left: string, width: string, zIndex: number }>();
+    if (events.length === 0) return layoutMap;
 
-    // 1. Sort by Start Time
+    // 1. Sort by Start Time, then End Time (longest first)
     const sortedEvents = [...events].sort((a, b) => {
-        const startA = new Date(a.startTime).getTime();
-        const startB = new Date(b.startTime).getTime();
-        return startA - startB;
+        const startDiff = new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+        if (startDiff !== 0) return startDiff;
+        return new Date(b.endTime).getTime() - new Date(a.endTime).getTime();
     });
 
-    const result: RenderableEvent[] = [];
-    let currentOverlapGroup: CalendarEvent[] = [];
+    // 2. Expand "Visual End Time"
+    // Events have a minimum visual height of 20px (20 minutes)
+    const visualEvents = sortedEvents.map(e => {
+        const start = new Date(e.startTime).getTime();
+        const rawEnd = new Date(e.endTime).getTime();
+        const minEnd = start + (20 * 60 * 1000);
+        const end = Math.max(rawEnd, minEnd);
+        return { ...e, start, end };
+    });
 
-    // Initialize with first event
-    currentOverlapGroup.push(sortedEvents[0]);
+    const columns: any[][] = [];
+    let lastEventEnd: number | null = null;
 
-    for (let i = 1; i < sortedEvents.length; i++) {
-        const currentEvent = sortedEvents[i];
-
-        // Check if current event overlaps with the *entire group* so far
-        // Simplification: identifying if it overlaps with the group's collective bounds
-        // Actually, strictly speaking, if A overlaps B, and B overlaps C, but A doesn't overlap C,
-        // they form a chain and should probably be visually grouped to avoid layout breaking, 
-        // OR we just group simplistic overlaps. 
-        // "Merging" implies a chain. Let's merge the chain.
-
-        // Calculate current group's end time (max end time of events in group)
-        const groupEndTime = new Date(Math.max(...currentOverlapGroup.map(e => new Date(e.endTime).getTime())));
-        const currentEventStart = new Date(currentEvent.startTime);
-
-        if (currentEventStart < groupEndTime) {
-            // Overlap detected! Add to group.
-            currentOverlapGroup.push(currentEvent);
-        } else {
-            // No overlap with the running group.
-            // Flush the current group to result.
-            pushGroupToResult(currentOverlapGroup, result);
-
-            // Start new group
-            currentOverlapGroup = [currentEvent];
+    visualEvents.forEach((event) => {
+        if (lastEventEnd !== null && event.start >= lastEventEnd) {
+            packEvents(columns, layoutMap);
+            columns.length = 0;
+            lastEventEnd = null;
         }
+
+        let placed = false;
+        for (const col of columns) {
+            if (col[col.length - 1].end <= event.start) {
+                col.push(event);
+                placed = true;
+                break;
+            }
+        }
+
+        if (!placed) {
+            columns.push([event]);
+        }
+
+        if (lastEventEnd === null || event.end > lastEventEnd) {
+            lastEventEnd = event.end;
+        }
+    });
+
+    if (columns.length > 0) {
+        packEvents(columns, layoutMap);
     }
 
-    // Flush remaining
-    if (currentOverlapGroup.length > 0) {
-        pushGroupToResult(currentOverlapGroup, result);
-    }
-
-    return result;
+    return layoutMap;
 }
 
-function pushGroupToResult(group: CalendarEvent[], result: RenderableEvent[]) {
-    if (group.length === 1) {
-        // Single event, no conflict
-        result.push(group[0]);
-    } else {
-        // Conflict Group
-        const start = new Date(Math.min(...group.map(e => new Date(e.startTime).getTime())));
-        const end = new Date(Math.max(...group.map(e => new Date(e.endTime).getTime())));
+function packEvents(columns: any[][], layoutMap: Map<string, { left: string, width: string, zIndex: number }>) {
+    const numColumns = columns.length;
+    const width = 100 / numColumns;
 
-        result.push({
-            type: 'conflict',
-            id: `conflict-${group.map(e => e.id).join('-')}`,
-            startTime: start,
-            endTime: end,
-            events: group
+    columns.forEach((col, i) => {
+        col.forEach((event) => {
+            // Basic side-by-side
+            layoutMap.set(event.id, {
+                left: `${i * width}%`,
+                width: `${width}%`,
+                zIndex: i + 1
+            });
         });
-    }
+    });
 }
+

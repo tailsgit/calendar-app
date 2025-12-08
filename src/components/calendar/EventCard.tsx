@@ -11,6 +11,9 @@ interface EventProps {
   onClick?: () => void;
   top?: number; // Optional override for positioning
   isLunch?: boolean;
+  left?: string;
+  width?: string;
+  zIndex?: number;
 }
 
 export default function EventCard({
@@ -21,7 +24,10 @@ export default function EventCard({
   status,
   onClick,
   top: customTop,
-  isLunch
+  isLunch,
+  left,
+  width,
+  zIndex
 }: EventProps) {
   // Clamp height to end of the day to prevent overflow
   const startHour = startTime.getHours();
@@ -54,6 +60,9 @@ export default function EventCard({
       style={{
         top: `${top}px`,
         height: `${height}px`,
+        left: left || '4px',
+        width: width || 'calc(100% - 8px)',
+        zIndex: zIndex || 1,
         backgroundColor: status === 'PROPOSED' ? 'white' : color,
         color: status === 'PROPOSED' ? color : 'white',
         borderLeft: `4px solid ${color}`,

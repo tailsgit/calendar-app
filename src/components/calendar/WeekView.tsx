@@ -2,8 +2,7 @@
 
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import EventCard from './EventCard';
-import { groupEventsForConflict, ConflictGroup, RenderableEvent } from '@/lib/conflict-detection';
-import ConflictCard from './ConflictCard';
+import { calculateEventLayout } from '@/lib/conflict-detection';
 
 interface Event {
   id: string;
@@ -55,7 +54,7 @@ export default function WeekView({ currentDate, events, onEventClick, onTimeSlot
         <div className="days-grid" style={{ display: 'flex', flexDirection: 'row' }}>
           {weekDays.map((day) => {
             const dayEvents = getEventsForDay(day);
-            const groupedItems = groupEventsForConflict(dayEvents);
+            const layoutMap = calculateEventLayout(dayEvents); // Calculate layout once per day
 
             return (
               <div
@@ -75,37 +74,28 @@ export default function WeekView({ currentDate, events, onEventClick, onTimeSlot
                     }}
                     onClick={() => onTimeSlotClick?.(day, hour)}
                   >
-                    {groupedItems
-                      .filter((item) => {
-                        const start = new Date(item.startTime);
+                    {dayEvents
+                      .filter((event) => {
+                        const start = new Date(event.startTime);
                         return start.getHours() === hour;
                       })
-                      .map((item) => {
-                        if ('type' in item && item.type === 'conflict') {
-                          return (
-                            <ConflictCard
-                              key={item.id}
-                              eventCount={item.events.length}
-                              startTime={new Date(item.startTime)}
-                              endTime={new Date(item.endTime)}
-                              onClick={() => onConflictClick?.(item as ConflictGroup)}
-                            />
-                          );
-                        } else {
-                          const event = item as any;
-                          return (
-                            <EventCard
-                              key={event.id}
-                              title={event.title}
-                              startTime={new Date(event.startTime)}
-                              endTime={new Date(event.endTime)}
-                              color="var(--color-accent)"
-                              isLunch={event.isLunch}
-                              onClick={() => onEventClick?.(event)}
-                              top={new Date(event.startTime).getMinutes()} // Relative to hour slot
-                            />
-                          );
-                        }
+                      .map((event) => {
+                        const layout = layoutMap.get(event.id) || { left: '0%', width: '100%', zIndex: 1 };
+                        return (
+                          <EventCard
+                            key={event.id}
+                            title={event.title}
+                            startTime={new Date(event.startTime)}
+                            endTime={new Date(event.endTime)}
+                            color="var(--color-accent)"
+                            isLunch={event.isLunch}
+                            onClick={() => onEventClick?.(event)}
+                            top={new Date(event.startTime).getMinutes()} // Relative to hour slot
+                            left={layout.left}
+                            width={layout.width}
+                            zIndex={layout.zIndex}
+                          />
+                        );
                       })}
                   </div>
                 ))}
