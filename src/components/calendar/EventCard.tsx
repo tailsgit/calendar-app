@@ -1,6 +1,7 @@
 "use client";
 
 import { format } from 'date-fns';
+import { useState } from 'react';
 
 interface EventProps {
   title: string;
@@ -50,6 +51,12 @@ export default function EventCard({
 
   const top = customTop !== undefined ? customTop : ((startHour * 60) + startMin);
   const height = durationMin;
+  const [isHovered, setIsHovered] = useState(false);
+
+  // Calculate current visual properties based on hover state
+  const effectiveHeight = isHovered ? Math.max(height, 65) : height;
+  const showTitle = effectiveHeight >= 25;
+  const showTime = effectiveHeight >= 50;
 
   const isPast = endTime < new Date();
   const isMultiDay = endTime.getDate() !== startTime.getDate() || endTime.getMonth() !== startTime.getMonth();
@@ -57,17 +64,20 @@ export default function EventCard({
   return (
     <div
       className="event-card"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       style={{
         top: `${top}px`,
-        height: `${height}px`,
+        height: `${effectiveHeight}px`,
         left: left || '4px',
         width: width || 'calc(100% - 8px)',
-        zIndex: zIndex || 1,
+        zIndex: isHovered ? 50 : (zIndex || 1),
         backgroundColor: status === 'PROPOSED' ? 'white' : color,
         color: status === 'PROPOSED' ? color : 'white',
         borderLeft: `4px solid ${color}`,
         border: status === 'PROPOSED' ? `2px dashed ${color}` : undefined,
         borderLeftStyle: status === 'PROPOSED' ? 'solid' : undefined,
+        boxShadow: isHovered ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
       }}
       onClick={(e) => {
         e.stopPropagation();
@@ -75,8 +85,7 @@ export default function EventCard({
       }}
     >
       <div className="event-content">
-        {/* Only show title if height is >= 25px */}
-        {height >= 25 && (
+        {showTitle && (
           <div className="event-title">
             {status === 'PENDING' && <span className="pending-dot" title="Pending">● </span>}
             {status === 'PROPOSED' && <span className="proposed-icon" title="Proposed">📝 </span>}
@@ -84,8 +93,7 @@ export default function EventCard({
           </div>
         )}
 
-        {/* Only show time if height is >= 50px (enough for 2 lines) */}
-        {height >= 50 && (
+        {showTime && (
           <div className="event-time">
             {format(startTime, 'h:mm a')} - {format(endTime, 'h:mm a')}
             {isMultiDay && <span style={{ opacity: 0.8, marginLeft: '4px' }}>(+1)</span>}
@@ -107,19 +115,14 @@ export default function EventCard({
           color: white;
           overflow: hidden;
           cursor: pointer;
-          transition: transform 0.1s;
-          cursor: pointer;
-          transition: transform 0.1s;
-          opacity: ${isPast ? 0.25 : (isLunch ? 0.65 : 1)};
-          z-index: 1;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          opacity: ${isPast ? 0.5 : (isLunch ? 0.85 : 1)};
         }
         
         /* Proposed State Styling */
         /* We'll use a data attribute selector or just inline style for now if we don't pass class */
         /* But better to use the status prop if we can access it in CSS. Since strict JSX, we rely on inline or prop-based styles */
         .event-card:hover {
-          transform: scale(1.02);
-          z-index: 2;
           opacity: 1;
         }
 
@@ -128,11 +131,14 @@ export default function EventCard({
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          line-height: 1.2;
         }
 
         .event-time {
           font-size: 0.7rem;
           opacity: 0.9;
+          margin-top: 2px;
+          line-height: 1.1;
         }
       `}</style>
     </div>
