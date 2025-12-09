@@ -121,14 +121,14 @@ export default function TeamHeatmap({ selectedUsers, currentDate }: TeamHeatmapP
 
     return (
         <div className="heatmap-container" style={{
-            backgroundColor: 'white',
+            backgroundColor: 'var(--color-bg-main)',
             borderRadius: '12px',
-            border: '1px solid #e5e5e5',
+            border: '1px solid var(--color-border)',
             padding: '24px',
             overflowX: 'auto'
         }}>
             {/* Legend / Key */}
-            <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', fontSize: '12px', color: '#525252' }}>
+            <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
                 <div style={{ display: 'flex', alignItems: 'center' }}><div style={{ width: 12, height: 12, backgroundColor: '#FFD700', borderRadius: 2, marginRight: 6 }}></div> Free (Gold)</div>
                 <div style={{ display: 'flex', alignItems: 'center' }}><div style={{ width: 12, height: 12, backgroundColor: '#FF6B6B', borderRadius: 2, marginRight: 6 }}></div> Busy (Red)</div>
             </div>
@@ -138,21 +138,21 @@ export default function TeamHeatmap({ selectedUsers, currentDate }: TeamHeatmapP
                 display: 'grid',
                 gridTemplateColumns: '60px repeat(5, 1fr)', // Time label + 5 Days
                 gap: '1px',
-                backgroundColor: '#f5f5f5', // Gap color
-                border: '1px solid #e5e5e5',
+                backgroundColor: 'var(--color-border)', // Gap color (border color logic)
+                border: '1px solid var(--color-border)',
                 borderRadius: '8px',
                 overflow: 'hidden'
             }}>
                 {/* Header Row */}
-                <div style={{ backgroundColor: '#fafafa' }}></div> {/* Empty corner */}
+                <div style={{ backgroundColor: 'var(--color-bg-secondary)' }}></div> {/* Empty corner */}
                 {days.map(day => (
                     <div key={day.toString()} style={{
                         padding: '12px',
                         textAlign: 'center',
                         fontSize: '14px',
                         fontWeight: 600,
-                        backgroundColor: '#fafafa',
-                        color: '#404040'
+                        backgroundColor: 'var(--color-bg-secondary)',
+                        color: 'var(--color-text-main)'
                     }}>
                         {format(day, 'EEE')}
                     </div>
@@ -166,8 +166,8 @@ export default function TeamHeatmap({ selectedUsers, currentDate }: TeamHeatmapP
                             padding: '12px',
                             textAlign: 'right',
                             fontSize: '11px',
-                            color: '#737373',
-                            backgroundColor: 'white',
+                            color: 'var(--color-text-secondary)',
+                            backgroundColor: 'var(--color-bg-main)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'flex-end',
@@ -183,22 +183,9 @@ export default function TeamHeatmap({ selectedUsers, currentDate }: TeamHeatmapP
                             const isBusy = status.busyCount > 0;
 
                             // Color Logic
-                            let backgroundColor = '#f5f5f5'; // Default/Unknown
+                            let backgroundColor = 'var(--color-bg-main)'; // Default/Unknown
                             if (isAllFree) backgroundColor = '#FFD700'; // Gold
                             if (isBusy) backgroundColor = '#FF6B6B'; // Red
-
-                            // Opacity based on busyness (Advanced requirement)
-                            // If busy, fade the red based on how MANY are busy? 
-                            // Or fade the gold? 
-                            // Requirement: "darker = more free people" or similar.
-                            // Let's stick to the core request: Gold = Perfect Match. Red = Conflict.
-                            // If conflict, mapped to Opacity? 
-                            // Let's vary the Red opacity. If 1 person busy = light red. All busy = dark red.
-                            if (isBusy) {
-                                const ratio = status.busyCount / status.total;
-                                // Simple approach: Just solid red for any conflict to satisfy "Red ... Conflict detected"
-                                // User said: "Red (#FF6B6B) or Gray: Conflict detected"
-                            }
 
                             return (
                                 <div
@@ -208,7 +195,7 @@ export default function TeamHeatmap({ selectedUsers, currentDate }: TeamHeatmapP
                                         position: 'relative',
                                         height: '48px',
                                         backgroundColor: backgroundColor,
-                                        opacity: isBusy ? 0.8 : 1, // Slight transparency for busy
+                                        opacity: isBusy ? 0.8 : (isAllFree ? 1 : 0.5), // Adjust opacity for non-busy slots if needed
                                         cursor: 'pointer',
                                         transition: 'filter 0.2s',
                                     }}

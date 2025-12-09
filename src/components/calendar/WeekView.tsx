@@ -143,7 +143,7 @@ export default function WeekView({ currentDate, events, onEventClick, onTimeSlot
         }
 
         .day-header.today {
-          background-color: var(--color-bg-secondary);
+          background-color: rgba(99, 102, 241, 0.1);
         }
 
         .day-header.today .day-number {

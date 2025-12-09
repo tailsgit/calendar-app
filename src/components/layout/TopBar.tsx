@@ -5,7 +5,11 @@ import { useSession, signIn, signOut } from "next-auth/react";
 import NotificationBell from "@/components/ui/NotificationBell";
 import UserSearch from "@/components/ui/UserSearch";
 
-export default function TopBar() {
+interface TopBarProps {
+  onMenuClick: () => void;
+}
+
+export default function TopBar({ onMenuClick }: TopBarProps) {
   const { data: session, status } = useSession();
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -22,7 +26,11 @@ export default function TopBar() {
 
   return (
     <header className="topbar" role="banner">
-      <div className="mobile-menu-btn" aria-label="Toggle menu">
+      <div
+        className="mobile-menu-btn"
+        aria-label="Toggle menu"
+        onClick={onMenuClick}
+      >
         <span>☰</span>
       </div>
 

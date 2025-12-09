@@ -4,13 +4,18 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Calendar } from 'lucide-react';
 
-export default function Sidebar() {
+interface SidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
 
   const isActive = (path: string) => pathname === path;
 
   return (
-    <aside className="sidebar" role="navigation" aria-label="Main navigation">
+    <aside className={`sidebar ${isOpen ? 'open' : ''}`} role="navigation" aria-label="Main navigation">
       <div className="sidebar-header">
         <div className="logo">
           <Calendar className="logo-icon" size={24} />
@@ -109,11 +114,17 @@ export default function Sidebar() {
 
         @media (max-width: 1024px) {
           .sidebar {
-          transform: translateX(-100%);
+            left: 0;
+            top: 0;
+            height: 100vh;
+            border-radius: 0;
+            transform: translateX(-100%);
+            box-shadow: none; /* No shadow when closed */
           }
 
-        .sidebar.open {
-          transform: translateX(0);
+          .sidebar.open {
+            transform: translateX(0);
+            box-shadow: var(--shadow-xl);
           }
         }
       `}</style>

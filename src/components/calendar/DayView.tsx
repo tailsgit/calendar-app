@@ -85,7 +85,7 @@ export default function DayView({ currentDate, events, onEventClick, onTimeSlotC
         .day-header {
           padding: var(--spacing-lg);
           border-bottom: 1px solid var(--color-border);
-          background: var(--color-bg-secondary);
+          background: var(--color-bg-main);
         }
 
         .day-info {

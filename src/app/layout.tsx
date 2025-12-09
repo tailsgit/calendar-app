@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import Sidebar from "@/components/layout/Sidebar";
-import TopBar from "@/components/layout/TopBar";
+import AppShell from "@/components/layout/AppShell";
 import Providers from "@/components/Providers";
 import CommandPalette from "@/components/ui/CommandPalette";
 
@@ -37,13 +36,9 @@ export default function RootLayout({
       <body suppressHydrationWarning={true}>
         <Providers>
           <CommandPalette />
-          <div className="app-shell">
-            <Sidebar />
-            <TopBar />
-            <main className="main-content">
-              {children}
-            </main>
-          </div>
+          <AppShell>
+            {children}
+          </AppShell>
         </Providers>
       </body>
     </html>
