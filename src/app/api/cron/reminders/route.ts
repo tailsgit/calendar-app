@@ -1,7 +1,7 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { addMinutes, subMinutes, formatISO } from 'date-fns';
+import { addMinutes, subMinutes, formatISO, format } from 'date-fns';
+import { sendSelfReminder } from '@/lib/email';
 
 export async function GET(request: NextRequest) {
     // SECURITY: In production, verify a "CRON_SECRET" header.
@@ -70,6 +70,27 @@ export async function GET(request: NextRequest) {
                             link: `/events/${event.id}`
                         }
                     });
+
+                    // SEND EMAIL REMINDER
+                    try {
+                        const user = await prisma.user.findUnique({
+                            where: { id: userId },
+                            select: { email: true, name: true }
+                        });
+
+                        if (user && user.email) {
+                            await sendSelfReminder({
+                                userEmail: user.email,
+                                userName: user.name || 'User',
+                                meetingTitle: event.title,
+                                date: format(new Date(event.startTime), 'EEEE, MMMM d, yyyy'),
+                                time: format(new Date(event.startTime), 'h:mm a'),
+                                reminderType: minutes <= 15 ? 'starting_soon' : 'upcoming'
+                            });
+                        }
+                    } catch (emailErr) {
+                        console.error('Failed to send email reminder', emailErr);
+                    }
 
                     results.push({
                         event: event.title,
