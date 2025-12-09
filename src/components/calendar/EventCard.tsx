@@ -75,15 +75,22 @@ export default function EventCard({
       }}
     >
       <div className="event-content">
-        <div className="event-title">
-          {status === 'PENDING' && <span className="pending-dot" title="Pending">● </span>}
-          {status === 'PROPOSED' && <span className="proposed-icon" title="Proposed">📝 </span>}
-          {title}
-        </div>
-        <div className="event-time">
-          {format(startTime, 'h:mm a')} - {format(endTime, 'h:mm a')}
-          {isMultiDay && <span style={{ opacity: 0.8, marginLeft: '4px' }}>(+1)</span>}
-        </div>
+        {/* Only show title if height is >= 25px */}
+        {height >= 25 && (
+          <div className="event-title">
+            {status === 'PENDING' && <span className="pending-dot" title="Pending">● </span>}
+            {status === 'PROPOSED' && <span className="proposed-icon" title="Proposed">📝 </span>}
+            {title}
+          </div>
+        )}
+
+        {/* Only show time if height is >= 50px (enough for 2 lines) */}
+        {height >= 50 && (
+          <div className="event-time">
+            {format(startTime, 'h:mm a')} - {format(endTime, 'h:mm a')}
+            {isMultiDay && <span style={{ opacity: 0.8, marginLeft: '4px' }}>(+1)</span>}
+          </div>
+        )}
       </div>
 
       <style jsx>{`
