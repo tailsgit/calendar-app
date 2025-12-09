@@ -150,115 +150,115 @@ export default function SmartSuggestionsPanel({ selectedUsers, userEvents }: Sma
             />
 
             <style jsx>{`
-            .smart-panel-container {
-                position: fixed;
-            bottom: 0;
-            right: 0;
-            left: 280px;
-            height: 380px;
-            background: var(--color-bg-main); /* FIX: Use variable */
-            border-top: 2px solid var(--color-accent);
-            box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
-            z-index: 100;
-            padding: 24px 32px;
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
+                .smart-panel-container {
+                    position: fixed;
+                    bottom: 0;
+                    right: 0;
+                    left: 280px;
+                    height: 380px;
+                    background: var(--color-bg-main);
+                    border-top: 2px solid var(--color-accent);
+                    box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
+                    z-index: 100;
+                    padding: 24px 32px;
+                    display: flex;
+                    flex-direction: column;
+                    overflow-y: auto;
                 }
 
-            @media (max-width: 768px) {
-                    .smart - panel - container {left: 0; height: 300px; padding: 16px; }
+                @media (max-width: 768px) {
+                    .smart-panel-container { left: 0; height: 300px; padding: 16px; }
                 }
 
-            .panel-header {
-                display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
+                .panel-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 20px;
                 }
 
-            .panel-header h2 {
-                font - size: 1rem;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-            color: var(--color-text-main); /* FIX: Use variable */
-            margin: 0;
-            display: flex;
-            align-items: center;
-            gap: 8px;
+                .panel-header h2 {
+                    font-size: 1rem;
+                    font-weight: 700;
+                    letter-spacing: 0.5px;
+                    color: var(--color-text-main);
+                    margin: 0;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
                 }
 
-            .analyzing-text {
-                font - size: 0.9rem;
-            color: var(--color-text-secondary); /* FIX: Use variable */
-            font-style: italic;
-            animation: pulse 1.5s infinite;
+                .analyzing-text {
+                    font-size: 0.9rem;
+                    color: var(--color-text-secondary);
+                    font-style: italic;
+                    animation: pulse 1.5s infinite;
                 }
 
-            @keyframes pulse {0 % { opacity: 0.6; } 50% {opacity: 1; } 100% {opacity: 0.6; } }
+                @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
 
-            .suggestions-grid {
-                display: flex;
-            gap: 24px;
-            overflow-x: auto;
-            padding-bottom: 10px;
+                .suggestions-grid {
+                    display: flex;
+                    gap: 24px;
+                    overflow-x: auto;
+                    padding-bottom: 10px;
                 }
 
-            .duration-row {
-                flex: 1;
-            min-width: 300px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
+                .duration-row {
+                    flex: 1;
+                    min-width: 300px;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
                 }
 
-            .row-label {
-                font - size: 0.8rem;
-            font-weight: 700;
-            color: var(--color-text-secondary); /* FIX: Use variable */
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            text-transform: uppercase;
+                .row-label {
+                    font-size: 0.8rem;
+                    font-weight: 700;
+                    color: var(--color-text-secondary);
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    text-transform: uppercase;
                 }
 
-            .cards-wrapper {
-                display: flex;
-            flex-direction: column;
-            gap: 12px;
+                .cards-wrapper {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
                 }
 
-            .loading-state {
-                flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            color: var(--color-text-secondary);
+                .loading-state {
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    align-items: center;
+                    color: var(--color-text-secondary);
                 }
 
-            .progress-bar-container {
-                width: 300px;
-            height: 6px;
-            background: var(--color-bg-secondary);
-            border-radius: 3px;
-            overflow: hidden;
-            margin-bottom: 16px;
+                .progress-bar-container {
+                    width: 300px;
+                    height: 6px;
+                    background: var(--color-bg-secondary);
+                    border-radius: 3px;
+                    overflow: hidden;
+                    margin-bottom: 16px;
                 }
 
-            .progress-bar-fill {
-                height: 100%;
-            background: linear-gradient(90deg, var(--color-accent), var(--color-secondary-brand));
-            width: 50%;
-            animation: loading 1.5s infinite ease-in-out;
+                .progress-bar-fill {
+                    height: 100%;
+                    background: linear-gradient(90deg, var(--color-accent), var(--color-secondary-brand));
+                    width: 50%;
+                    animation: loading 1.5s infinite ease-in-out;
                 }
 
-            @keyframes loading {
-                0 % { width: 0 %; transform: translateX(-100 %); }
-                    100% {width: 100%; transform: translateX(100%); }
+                @keyframes loading {
+                    0% { width: 0%; transform: translateX(-100%); }
+                    100% { width: 100%; transform: translateX(100%); }
                 }
             `}</style>
-        </div >
+        </div>
     );
 }
 
