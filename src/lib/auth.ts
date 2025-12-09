@@ -33,6 +33,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     prompt: "consent", // Force consent to ensure we get a Refresh Token and scopes
                 },
             },
+            allowDangerousEmailAccountLinking: true,
         }),
         CredentialsProvider({
             name: "Credentials",
