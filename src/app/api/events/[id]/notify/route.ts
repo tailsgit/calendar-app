@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
+import { sendSelfReminder } from '@/lib/email';
 
 export async function POST(
     request: NextRequest,
@@ -70,8 +71,22 @@ export async function POST(
             })),
         });
 
-        // Mock Email Sending
-        console.log(`[MOCK EMAIL] Sending "Running Late" (${delayMinutes}m) to ${Array.from(recipients).join(', ')}`);
+        // Send Emails
+        // We iterate and send individual emails (simplified for now)
+        const recipientsArray = Array.from(recipients);
+        for (const recipientId of recipientsArray) {
+            const user = await prisma.user.findUnique({ where: { id: recipientId } });
+            if (user?.email) {
+                await sendSelfReminder({
+                    userEmail: user.email,
+                    userName: user.name || 'User',
+                    meetingTitle: event.title,
+                    date: new Date(event.startTime).toLocaleDateString(),
+                    time: new Date(event.startTime).toLocaleTimeString(),
+                    reminderType: 'running_late'
+                });
+            }
+        }
 
         return NextResponse.json({ success: true, recipients: Array.from(recipients) });
 

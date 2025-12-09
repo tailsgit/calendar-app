@@ -9,65 +9,65 @@ import nodemailer from 'nodemailer';
  */
 
 interface EmailCredentials {
-    email: string;
-    appPassword: string;
+  email: string;
+  appPassword: string;
 }
 
 // Create a transporter for a specific user's credentials
 function createTransporter(credentials: EmailCredentials) {
-    return nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: credentials.email,
-            pass: credentials.appPassword,
-        },
-    });
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: credentials.email,
+      pass: credentials.appPassword,
+    },
+  });
 }
 
 // Fallback transporter using env vars (for testing or when user hasn't connected Gmail)
 function getFallbackTransporter() {
-    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-        return null;
-    }
-    return nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: process.env.GMAIL_USER,
-            pass: process.env.GMAIL_APP_PASSWORD,
-        },
-    });
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    return null;
+  }
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_APP_PASSWORD,
+    },
+  });
 }
 
 interface MeetingInviteData {
-    // Sender (the person requesting the meeting)
-    senderEmail: string;
-    senderName: string;
-    senderCredentials?: EmailCredentials;
+  // Sender (the person requesting the meeting)
+  senderEmail: string;
+  senderName: string;
+  senderCredentials?: EmailCredentials;
 
-    // Recipient (the person being invited)
-    recipientEmail: string;
-    recipientName: string;
+  // Recipient (the person being invited)
+  recipientEmail: string;
+  recipientName: string;
 
-    // Meeting details
-    meetingTitle: string;
-    date: string;
-    time: string;
-    duration: number;
-    locationType?: string;
-    description?: string;
+  // Meeting details
+  meetingTitle: string;
+  date: string;
+  time: string;
+  duration: number;
+  locationType?: string;
+  description?: string;
 }
 
 interface SelfReminderData {
-    // User sends to themselves
-    userEmail: string;
-    userName: string;
-    userCredentials?: EmailCredentials;
+  // User sends to themselves
+  userEmail: string;
+  userName: string;
+  userCredentials?: EmailCredentials;
 
-    // Meeting details
-    meetingTitle: string;
-    date: string;
-    time: string;
-    reminderType: 'upcoming' | 'starting_soon' | 'confirmation';
+  // Meeting details
+  meetingTitle: string;
+  date: string;
+  time: string;
+  reminderType: 'upcoming' | 'starting_soon' | 'confirmation' | 'running_late';
 }
 
 /**
@@ -75,17 +75,17 @@ interface SelfReminderData {
  * Email FROM: Person A (inviter) → TO: Person B (invitee)
  */
 export async function sendMeetingInvite(data: MeetingInviteData) {
-    const {
-        senderEmail, senderName, senderCredentials,
-        recipientEmail, recipientName,
-        meetingTitle, date, time, duration, locationType, description
-    } = data;
+  const {
+    senderEmail, senderName, senderCredentials,
+    recipientEmail, recipientName,
+    meetingTitle, date, time, duration, locationType, description
+  } = data;
 
-    const locationText = locationType === 'VIDEO' ? '📹 Video Call' :
-        locationType === 'PHONE' ? '📞 Phone Call' :
-            locationType === 'IN_PERSON' ? '📍 In Person' : 'To be determined';
+  const locationText = locationType === 'VIDEO' ? '📹 Video Call' :
+    locationType === 'PHONE' ? '📞 Phone Call' :
+      locationType === 'IN_PERSON' ? '📍 In Person' : 'To be determined';
 
-    const html = `
+  const html = `
     <!DOCTYPE html>
     <html>
     <head>
@@ -154,33 +154,33 @@ export async function sendMeetingInvite(data: MeetingInviteData) {
     </html>
   `;
 
-    try {
-        // Use sender's credentials if available, otherwise fallback
-        const transporter = senderCredentials
-            ? createTransporter(senderCredentials)
-            : getFallbackTransporter();
+  try {
+    // Use sender's credentials if available, otherwise fallback
+    const transporter = senderCredentials
+      ? createTransporter(senderCredentials)
+      : getFallbackTransporter();
 
-        if (!transporter) {
-            console.log('No email credentials available, skipping email');
-            return { success: false, error: 'No email credentials configured' };
-        }
-
-        const fromEmail = senderCredentials?.email || process.env.GMAIL_USER;
-
-        const result = await transporter.sendMail({
-            from: `"${senderName}" <${fromEmail}>`,
-            to: recipientEmail,
-            replyTo: senderEmail, // Replies go back to the actual sender
-            subject: `📅 Meeting Invitation: ${meetingTitle}`,
-            html,
-        });
-
-        console.log('Meeting invite sent:', result.messageId);
-        return { success: true, messageId: result.messageId };
-    } catch (error) {
-        console.error('Error sending meeting invite:', error);
-        return { success: false, error };
+    if (!transporter) {
+      console.log('No email credentials available, skipping email');
+      return { success: false, error: 'No email credentials configured' };
     }
+
+    const fromEmail = senderCredentials?.email || process.env.GMAIL_USER;
+
+    const result = await transporter.sendMail({
+      from: `"${senderName}" <${fromEmail}>`,
+      to: recipientEmail,
+      replyTo: senderEmail, // Replies go back to the actual sender
+      subject: `📅 Meeting Invitation: ${meetingTitle}`,
+      html,
+    });
+
+    console.log('Meeting invite sent:', result.messageId);
+    return { success: true, messageId: result.messageId };
+  } catch (error) {
+    console.error('Error sending meeting invite:', error);
+    return { success: false, error };
+  }
 }
 
 /**
@@ -188,27 +188,30 @@ export async function sendMeetingInvite(data: MeetingInviteData) {
  * Email FROM: User → TO: User (appears as self-reminder)
  */
 export async function sendSelfReminder(data: SelfReminderData) {
-    const { userEmail, userName, userCredentials, meetingTitle, date, time, reminderType } = data;
+  const { userEmail, userName, userCredentials, meetingTitle, date, time, reminderType } = data;
 
-    const subjects: Record<string, string> = {
-        upcoming: `📅 Upcoming: ${meetingTitle}`,
-        starting_soon: `⏰ Starting Soon: ${meetingTitle}`,
-        confirmation: `✅ Confirmed: ${meetingTitle}`,
-    };
+  const subjects: Record<string, string> = {
+    upcoming: `📅 Upcoming: ${meetingTitle}`,
+    starting_soon: `⏰ Starting Soon: ${meetingTitle}`,
+    confirmation: `✅ Confirmed: ${meetingTitle}`,
+    running_late: `🏃 Running Late: ${meetingTitle}`,
+  };
 
-    const messages: Record<string, string> = {
-        upcoming: 'You have an upcoming meeting scheduled.',
-        starting_soon: 'Your meeting is starting soon! Get ready.',
-        confirmation: 'Your meeting has been confirmed.',
-    };
+  const messages: Record<string, string> = {
+    upcoming: 'You have an upcoming meeting scheduled.',
+    starting_soon: 'Your meeting is starting soon! Get ready.',
+    confirmation: 'Your meeting has been confirmed.',
+    running_late: 'The host is running slightly late. Thanks for waiting!',
+  };
 
-    const icons: Record<string, string> = {
-        upcoming: '📅',
-        starting_soon: '⏰',
-        confirmation: '✅',
-    };
+  const icons: Record<string, string> = {
+    upcoming: '📅',
+    starting_soon: '⏰',
+    confirmation: '✅',
+    running_late: '🏃',
+  };
 
-    const html = `
+  const html = `
     <!DOCTYPE html>
     <html>
     <head>
@@ -254,32 +257,32 @@ export async function sendSelfReminder(data: SelfReminderData) {
     </html>
   `;
 
-    try {
-        // Use user's own credentials to send to themselves
-        const transporter = userCredentials
-            ? createTransporter(userCredentials)
-            : getFallbackTransporter();
+  try {
+    // Use user's own credentials to send to themselves
+    const transporter = userCredentials
+      ? createTransporter(userCredentials)
+      : getFallbackTransporter();
 
-        if (!transporter) {
-            console.log('No email credentials available, skipping reminder');
-            return { success: false, error: 'No email credentials configured' };
-        }
-
-        const fromEmail = userCredentials?.email || process.env.GMAIL_USER;
-
-        const result = await transporter.sendMail({
-            from: `"Calendar Reminder" <${fromEmail}>`,
-            to: userEmail,
-            subject: subjects[reminderType],
-            html,
-        });
-
-        console.log('Self reminder sent:', result.messageId);
-        return { success: true, messageId: result.messageId };
-    } catch (error) {
-        console.error('Error sending self reminder:', error);
-        return { success: false, error };
+    if (!transporter) {
+      console.log('No email credentials available, skipping reminder');
+      return { success: false, error: 'No email credentials configured' };
     }
+
+    const fromEmail = userCredentials?.email || process.env.GMAIL_USER;
+
+    const result = await transporter.sendMail({
+      from: `"Calendar Reminder" <${fromEmail}>`,
+      to: userEmail,
+      subject: subjects[reminderType],
+      html,
+    });
+
+    console.log('Self reminder sent:', result.messageId);
+    return { success: true, messageId: result.messageId };
+  } catch (error) {
+    console.error('Error sending self reminder:', error);
+    return { success: false, error };
+  }
 }
 
 /**
@@ -288,67 +291,67 @@ export async function sendSelfReminder(data: SelfReminderData) {
  * - Host receives self-notification
  */
 export async function sendBookingConfirmation(data: {
-    // Host (the calendar owner)
-    hostEmail: string;
-    hostName: string;
-    hostCredentials?: EmailCredentials;
+  // Host (the calendar owner)
+  hostEmail: string;
+  hostName: string;
+  hostCredentials?: EmailCredentials;
 
-    // Guest (the person booking)
-    guestEmail: string;
-    guestName: string;
+  // Guest (the person booking)
+  guestEmail: string;
+  guestName: string;
 
-    // Meeting details
-    meetingTitle: string;
-    date: string;
-    time: string;
-    duration: number;
-    locationType?: string;
+  // Meeting details
+  meetingTitle: string;
+  date: string;
+  time: string;
+  duration: number;
+  locationType?: string;
 }) {
-    const { hostEmail, hostName, hostCredentials, guestEmail, guestName, meetingTitle, date, time, duration, locationType } = data;
+  const { hostEmail, hostName, hostCredentials, guestEmail, guestName, meetingTitle, date, time, duration, locationType } = data;
 
-    // 1. Send confirmation to guest (FROM host TO guest)
-    const guestResult = await sendMeetingInvite({
-        senderEmail: hostEmail,
-        senderName: hostName,
-        senderCredentials: hostCredentials,
-        recipientEmail: guestEmail,
-        recipientName: guestName,
-        meetingTitle: `${meetingTitle} with ${hostName}`,
-        date,
-        time,
-        duration,
-        locationType,
-        description: `Booked by ${guestName}`,
-    });
+  // 1. Send confirmation to guest (FROM host TO guest)
+  const guestResult = await sendMeetingInvite({
+    senderEmail: hostEmail,
+    senderName: hostName,
+    senderCredentials: hostCredentials,
+    recipientEmail: guestEmail,
+    recipientName: guestName,
+    meetingTitle: `${meetingTitle} with ${hostName}`,
+    date,
+    time,
+    duration,
+    locationType,
+    description: `Booked by ${guestName}`,
+  });
 
-    // 2. Send self-notification to host (FROM host TO host)
-    const hostResult = await sendSelfReminder({
-        userEmail: hostEmail,
-        userName: hostName,
-        userCredentials: hostCredentials,
-        meetingTitle: `${meetingTitle} with ${guestName}`,
-        date,
-        time,
-        reminderType: 'confirmation',
-    });
+  // 2. Send self-notification to host (FROM host TO host)
+  const hostResult = await sendSelfReminder({
+    userEmail: hostEmail,
+    userName: hostName,
+    userCredentials: hostCredentials,
+    meetingTitle: `${meetingTitle} with ${guestName}`,
+    date,
+    time,
+    reminderType: 'confirmation',
+  });
 
-    return {
-        guestEmailSent: guestResult.success,
-        hostEmailSent: hostResult.success,
-    };
+  return {
+    guestEmailSent: guestResult.success,
+    hostEmailSent: hostResult.success,
+  };
 }
 
 export async function sendDeclineNotification(data: {
-    senderEmail: string;
-    senderName: string;
-    senderCredentials?: EmailCredentials;
-    recipientEmail: string;
-    recipientName: string;
-    meetingTitle: string;
+  senderEmail: string;
+  senderName: string;
+  senderCredentials?: EmailCredentials;
+  recipientEmail: string;
+  recipientName: string;
+  meetingTitle: string;
 }) {
-    const { senderEmail, senderName, senderCredentials, recipientEmail, recipientName, meetingTitle } = data;
+  const { senderEmail, senderName, senderCredentials, recipientEmail, recipientName, meetingTitle } = data;
 
-    const html = `
+  const html = `
     <!DOCTYPE html>
     <html>
     <head>
@@ -379,27 +382,27 @@ export async function sendDeclineNotification(data: {
     </html>
     `;
 
-    try {
-        const transporter = senderCredentials
-            ? createTransporter(senderCredentials)
-            : getFallbackTransporter();
+  try {
+    const transporter = senderCredentials
+      ? createTransporter(senderCredentials)
+      : getFallbackTransporter();
 
-        if (!transporter) return { success: false, error: 'No email credentials' };
+    if (!transporter) return { success: false, error: 'No email credentials' };
 
-        const fromEmail = senderCredentials?.email || process.env.GMAIL_USER;
+    const fromEmail = senderCredentials?.email || process.env.GMAIL_USER;
 
-        await transporter.sendMail({
-            from: `"${senderName}" <${fromEmail}>`,
-            to: recipientEmail,
-            subject: `❌ Declined: ${meetingTitle}`,
-            html,
-        });
+    await transporter.sendMail({
+      from: `"${senderName}" <${fromEmail}>`,
+      to: recipientEmail,
+      subject: `❌ Declined: ${meetingTitle}`,
+      html,
+    });
 
-        return { success: true };
-    } catch (error) {
-        console.error('Error sending decline notification:', error);
-        return { success: false, error };
-    }
+    return { success: true };
+  } catch (error) {
+    console.error('Error sending decline notification:', error);
+    return { success: false, error };
+  }
 }
 
 // Legacy exports for backward compatibility
