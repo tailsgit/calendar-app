@@ -90,8 +90,12 @@ export async function getGoogleCalendarEvents(userId: string, start: Date, end: 
         return (data.items || []).map((item: any) => ({
             id: item.id || Math.random().toString(),
             title: item.summary || '(No Title)',
-            start: new Date(item.start.dateTime || item.start.date),
-            end: new Date(item.end.dateTime || item.end.date),
+            start: item.start.dateTime
+                ? new Date(item.start.dateTime)
+                : new Date(item.start.date + 'T12:00:00Z'), // Force Noon UTC to avoid "previous day" shift in EST
+            end: item.end.dateTime
+                ? new Date(item.end.dateTime)
+                : new Date(item.end.date + 'T13:00:00Z'), // 1 hour duration visually
             isAllDay: !item.start.dateTime,
             source: 'google',
             location: item.location,
