@@ -50,8 +50,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         async signIn({ account, profile }) {
             console.log("SignIn Callback:");
             console.log("Provider:", account?.provider);
-            console.log("Scopes:", account?.scope);
-            console.log("Refresh Token:", !!account?.refresh_token);
             return true;
         },
         async session({ session, user }) {
@@ -59,6 +57,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 session.user.id = user.id;
             }
             return session;
+        },
+    },
+    events: {
+        async error(message) {
+            console.error("NextAuth Error Event:", message);
         },
     },
     pages: {
