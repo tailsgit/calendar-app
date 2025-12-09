@@ -49,6 +49,7 @@ export default function SuggestionCard({ slot, userCount, durationMinutes, onSel
                 {isSelected ? '✓ Selected' : isEarly || isLate || isWeekend ? 'Book Anyway' : 'Quick Book'}
             </button>
 
+            <style jsx>{`
             .suggestion-card {
                 background: var(--color-bg-main);
             border: 1px solid var(--color-border);

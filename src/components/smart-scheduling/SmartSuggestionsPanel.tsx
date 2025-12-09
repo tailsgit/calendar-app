@@ -149,6 +149,7 @@ export default function SmartSuggestionsPanel({ selectedUsers, userEvents }: Sma
                 onSubmit={handleFormSubmit}
             />
 
+            <style jsx>{`
             .smart-panel-container {
                 position: fixed;
             bottom: 0;
