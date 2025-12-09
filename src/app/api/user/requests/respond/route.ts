@@ -72,6 +72,15 @@ export async function POST(request: NextRequest) {
                     meetingTitle: mr.title,
                     declineReason
                 });
+
+                // Send In-App Notification to Requester
+                await createNotification({
+                    userId: mr.requesterId,
+                    type: 'update',
+                    title: 'Meeting Declined',
+                    message: `${session.user.name} declined your request: "${mr.title}"${declineReason ? `. Reason: "${declineReason}"` : ''}`,
+                    link: '/requests'
+                });
             }
 
         } else if (type === 'event_invite') {
@@ -107,11 +116,16 @@ export async function POST(request: NextRequest) {
             }
 
             const verb = action === 'accept' ? 'accepted' : 'declined';
+            let notifMessage = `${session.user.name} ${verb} your invite to "${participant.event.title}"`;
+            if (action === 'decline' && declineReason) {
+                notifMessage += `. Reason: "${declineReason}"`;
+            }
+
             await createNotification({
                 userId: participant.event.ownerId,
                 type: 'update',
                 title: `Meeting ${action === 'accept' ? 'Accepted' : 'Declined'}`,
-                message: `${session.user.name} ${verb} your invite to "${participant.event.title}"`,
+                message: notifMessage,
                 link: `/`
             });
         }

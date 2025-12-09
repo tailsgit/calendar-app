@@ -27,12 +27,12 @@ export default function RequestsPage() {
         fetchRequests();
     }, []);
 
-    const handleRespond = async (id: string, type: string, action: 'accept' | 'decline') => {
+    const handleRespond = async (id: string, type: string, action: 'accept' | 'decline', reason?: string) => {
         try {
             const res = await fetch('/api/user/requests/respond', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id, type, action })
+                body: JSON.stringify({ id, type, action, declineReason: reason })
             });
 
             if (res.ok) {

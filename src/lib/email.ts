@@ -112,7 +112,7 @@ export async function sendMeetingInvite(data: MeetingInviteData) {
         .btn-primary { 
             display: block; 
             background: #6366F1; 
-            color: white; 
+            color: #ffffff !important; 
             text-align: center; 
             padding: 14px 20px; 
             border-radius: 8px; 
@@ -121,8 +121,12 @@ export async function sendMeetingInvite(data: MeetingInviteData) {
             font-size: 16px; 
             margin-bottom: 16px;
             box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+            mso-padding-alt: 0;
+            text-underline-color: #6366F1;
         }
         .btn-primary:hover { background: #4F46E5; }
+        /* Force link color */
+        a.btn-primary { color: #ffffff !important; }
 
         .actions-secondary { display: table; width: 100%; border-collapse: separate; border-spacing: 12px 0; margin: 0 -12px; }
         .action-cell { display: table-cell; width: 50%; }
@@ -130,7 +134,7 @@ export async function sendMeetingInvite(data: MeetingInviteData) {
         .btn-secondary {
             display: block;
             background: #F1F5F9;
-            color: #475569;
+            color: #475569 !important;
             text-align: center;
             padding: 12px;
             border-radius: 8px;
@@ -140,11 +144,12 @@ export async function sendMeetingInvite(data: MeetingInviteData) {
             border: 1px solid #E2E8F0;
         }
         .btn-secondary:hover { background: #E2E8F0; }
+        a.btn-secondary { color: #475569 !important; }
 
         .btn-decline {
             display: block;
             background: white;
-            color: #EF4444;
+            color: #EF4444 !important;
             text-align: center;
             padding: 12px;
             border-radius: 8px;
@@ -154,6 +159,7 @@ export async function sendMeetingInvite(data: MeetingInviteData) {
             border: 1px solid #FECACA;
         }
         .btn-decline:hover { background: #FEF2F2; }
+        a.btn-decline { color: #EF4444 !important; }
 
         .footer { text-align: center; color: #94A3B8; font-size: 13px; margin-top: 40px; border-top: 1px solid #E2E8F0; padding-top: 24px; }
       </style>
