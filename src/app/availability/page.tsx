@@ -1,45 +1,39 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Clock, Check, Save, AlertCircle } from 'lucide-react';
+import { Save, Trash2, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface AvailabilitySlot {
+    id?: string; // Optional for new slots
     dayOfWeek: number;
-    startTime: string;
-    endTime: string;
-    isEnabled: boolean;
+    startTime: string; // HH:MM
+    endTime: string;   // HH:MM
 }
 
-const DAYS = [
-    'Sunday',
-    'Monday',
-    'Tuesday',
-    'Wednesday',
-    'Thursday',
-    'Friday',
-    'Saturday'
-];
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 7 AM - 9 PM
 
-// Generate time options (every 30 mins)
-const TIME_OPTIONS = Array.from({ length: 48 }).map((_, i) => {
-    const hour = Math.floor(i / 2);
-    const min = (i % 2) * 30;
-    const time = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+// Helper to convert time string to minutes
+const timeToMinutes = (time: string) => {
+    const [h, m] = time.split(':').map(Number);
+    return h * 60 + m;
+};
 
-    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-    const ampm = hour < 12 ? 'AM' : 'PM';
-    const label = `${displayHour}:${min.toString().padStart(2, '0')} ${ampm}`;
-
-    return { value: time, label };
-});
+// Helper to convert minutes to time string
+const minutesToTime = (mins: number) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+};
 
 export default function AvailabilityPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [schedule, setSchedule] = useState<AvailabilitySlot[]>([]);
+    const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
+    const [editingSlot, setEditingSlot] = useState<{ slot: AvailabilitySlot, index: number } | null>(null);
 
     useEffect(() => {
         fetchAvailability();
@@ -50,19 +44,12 @@ export default function AvailabilityPage() {
             const res = await fetch('/api/user/availability');
             if (res.ok) {
                 const data = await res.json();
-
-                // Merge with defaults to ensure all 7 days exist
-                const fullSchedule = Array.from({ length: 7 }).map((_, i) => {
-                    const existing = data.find((s: any) => s.dayOfWeek === i);
-                    return existing || {
-                        dayOfWeek: i,
-                        startTime: '09:00',
-                        endTime: '17:00',
-                        isEnabled: i !== 0 && i !== 6 // Default: Mon-Fri enabled
-                    };
-                });
-
-                setSchedule(fullSchedule);
+                setSlots(data.map((s: any) => ({
+                    id: s.id,
+                    dayOfWeek: s.dayOfWeek,
+                    startTime: s.startTime,
+                    endTime: s.endTime
+                })));
             } else {
                 toast.error('Failed to load availability');
             }
@@ -74,31 +61,46 @@ export default function AvailabilityPage() {
         }
     };
 
-    const handleDayToggle = (dayIndex: number) => {
-        setSchedule(prev => prev.map(slot =>
-            slot.dayOfWeek === dayIndex
-                ? { ...slot, isEnabled: !slot.isEnabled }
-                : slot
-        ));
+    const handleGridClick = (dayIndex: number, hour: number) => {
+        // Check if clicking existing slot handled by slot onClick
+        // Here we create a new slot
+        const startTime = `${hour.toString().padStart(2, '0')}:00`;
+        const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`;
+
+        // Check for overlap
+        const newStart = timeToMinutes(startTime);
+        const newEnd = timeToMinutes(endTime);
+
+        const hasOverlap = slots.some(s => {
+            if (s.dayOfWeek !== dayIndex) return false;
+            const sStart = timeToMinutes(s.startTime);
+            const sEnd = timeToMinutes(s.endTime);
+            return (newStart < sEnd && newEnd > sStart);
+        });
+
+        if (hasOverlap) return; // Don't create on top of existing
+
+        const newSlot = { dayOfWeek: dayIndex, startTime, endTime };
+        setSlots([...slots, newSlot]);
     };
 
-    const handleTimeChange = (dayIndex: number, field: 'startTime' | 'endTime', value: string) => {
-        setSchedule(prev => prev.map(slot => {
-            if (slot.dayOfWeek !== dayIndex) return slot;
+    const handleSlotClick = (e: React.MouseEvent, index: number) => {
+        e.stopPropagation(); // Prevent grid click
+        setEditingSlot({ slot: slots[index], index });
+    };
 
-            const newSlot = { ...slot, [field]: value };
+    const updateSlot = (index: number, updates: Partial<AvailabilitySlot>) => {
+        const updated = [...slots];
+        updated[index] = { ...updated[index], ...updates };
+        setSlots(updated);
+        // Update editing state too
+        setEditingSlot({ slot: updated[index], index });
+    };
 
-            // Auto-adjust end time if start time is after end time
-            if (field === 'startTime' && newSlot.endTime <= value) {
-                // Find next slot (30 mins later)
-                const timeIndex = TIME_OPTIONS.findIndex(t => t.value === value);
-                if (timeIndex < TIME_OPTIONS.length - 1) {
-                    newSlot.endTime = TIME_OPTIONS[timeIndex + 2]?.value || TIME_OPTIONS[TIME_OPTIONS.length - 1].value;
-                }
-            }
-
-            return newSlot;
-        }));
+    const deleteSlot = (index: number) => {
+        const updated = slots.filter((_, i) => i !== index);
+        setSlots(updated);
+        setEditingSlot(null);
     };
 
     const handleSave = async () => {
@@ -107,7 +109,7 @@ export default function AvailabilityPage() {
             const res = await fetch('/api/user/availability', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ availability: schedule })
+                body: JSON.stringify({ availability: slots })
             });
 
             if (res.ok) {
@@ -123,24 +125,14 @@ export default function AvailabilityPage() {
         }
     };
 
-    const copyToAllDays = (sourceDayIndex: number) => {
-        const source = schedule.find(s => s.dayOfWeek === sourceDayIndex);
-        if (!source) return;
-
-        setSchedule(prev => prev.map(slot => {
-            if (slot.dayOfWeek === sourceDayIndex) return slot; // Skip source
-            // Only copy to enabled days or all? Let's just update all Mon-Fri to match
-            if (slot.dayOfWeek === 0 || slot.dayOfWeek === 6) return slot; // Skip weekends
-
-            return {
-                ...slot,
-                startTime: source.startTime,
-                endTime: source.endTime,
-                isEnabled: true
-            };
-        }));
-        toast.success('Copied to all weekdays');
-    };
+    // Generate time options for select
+    const timeOptions = Array.from({ length: 48 }).map((_, i) => {
+        const h = Math.floor(i / 2);
+        const m = (i % 2) * 30;
+        const time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+        const label = `${h === 0 ? 12 : h > 12 ? h - 12 : h}:${m === 0 ? '00' : '30'} ${h < 12 ? 'AM' : 'PM'}`;
+        return { value: time, label };
+    });
 
     if (loading) return <div className="p-8 text-center text-neutral-500">Loading schedule...</div>;
 
@@ -148,186 +140,317 @@ export default function AvailabilityPage() {
         <div className="availability-page container">
             <div className="header">
                 <h1>Office Hours</h1>
-                <p>Set your recurring weekly availability.</p>
+                <p>Click on the grid to add availability. Click slot to edit.</p>
             </div>
 
-            <div className="schedule-card">
-                {schedule.map((slot) => (
-                    <div key={slot.dayOfWeek} className={`day-row ${slot.isEnabled ? 'enabled' : 'disabled'}`}>
-                        <div className="day-check">
-                            <input
-                                type="checkbox"
-                                id={`day-${slot.dayOfWeek}`}
-                                checked={slot.isEnabled}
-                                onChange={() => handleDayToggle(slot.dayOfWeek)}
-                            />
-                            <label htmlFor={`day-${slot.dayOfWeek}`}>{DAYS[slot.dayOfWeek]}</label>
+            <div className="calendar-grid">
+                {/* Header Row */}
+                <div className="time-col-header"></div>
+                {DAYS.map((day, i) => (
+                    <div key={day} className="day-header">{day}</div>
+                ))}
+
+                {/* Time Rows */}
+                {HOURS.map(hour => (
+                    <div key={`row-${hour}`} className="grid-row">
+                        <div className="time-label">
+                            {hour > 12 ? hour - 12 : hour} {hour < 12 ? 'AM' : 'PM'}
                         </div>
+                        {DAYS.map((_, dayIndex) => (
+                            <div
+                                key={`${dayIndex}-${hour}`}
+                                className="grid-cell"
+                                onClick={() => handleGridClick(dayIndex, hour)}
+                            >
+                                {/* Render slots that belong to this cell? No, absolute positioning is better */}
+                            </div>
+                        ))}
+                    </div>
+                ))}
 
-                        <div className="time-selectors">
-                            {slot.isEnabled ? (
-                                <>
-                                    <select
-                                        value={slot.startTime}
-                                        onChange={(e) => handleTimeChange(slot.dayOfWeek, 'startTime', e.target.value)}
-                                    >
-                                        {TIME_OPTIONS.map(opt => (
-                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                        ))}
-                                    </select>
-                                    <span className="separator">-</span>
-                                    <select
-                                        value={slot.endTime}
-                                        onChange={(e) => handleTimeChange(slot.dayOfWeek, 'endTime', e.target.value)}
-                                    >
-                                        {TIME_OPTIONS.map(opt => (
-                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                        ))}
-                                    </select>
+                {/* Render Slots Absolute Over Grid */}
+                {slots.map((slot, i) => {
+                    const startMin = timeToMinutes(slot.startTime);
+                    const endMin = timeToMinutes(slot.endTime);
+                    const duration = endMin - startMin;
+                    const gridStartHour = 7; // Grid starts at 7 AM
+                    const topOffset = (startMin - (gridStartHour * 60)) * (60 / 60); // 60px per hour
+                    const height = duration * (60 / 60);
 
-                                    <button
-                                        className="copy-btn"
-                                        title="Copy to all weekdays"
-                                        onClick={() => copyToAllDays(slot.dayOfWeek)}
+                    // Only render if within grid range (7am-10pm)
+                    if (startMin < gridStartHour * 60) return null; // Too early?
+
+                    return (
+                        <div
+                            key={i}
+                            className="slot"
+                            style={{
+                                gridColumn: slot.dayOfWeek + 2, // +2 because 1st col is time labels
+                                top: `${topOffset + 40}px`, // +40 for header offset
+                                height: `${height}px`,
+                                position: 'absolute' // Actually, parent needs relative?
+                                // CSS Grid approach is better:
+                                // Grid wrapper needs to be relative.
+                                // Or use actual grid placement?
+                                // Let's rely on simple absolute relative to daily column
+                            }}
+                            onClick={(e) => handleSlotClick(e, i)}
+                        >
+                            <div className="slot-time">
+                                {slot.startTime} - {slot.endTime}
+                            </div>
+                        </div>
+                    );
+                })}
+
+                {/* 
+           Simpler approach: 
+           Render slots INSIDE correct columns if layout allows.
+           Actually, the "absolute over grid" relies on knowing strict pixels.
+           Let's rewrite grid to use columns container.
+        */}
+            </div>
+
+            {/* Re-implementing Grid Structure to support slot positioning */}
+            <div className="visual-grid-container">
+                <div className="v-time-col">
+                    <div className="v-header-cell"></div>
+                    {HOURS.map(h => (
+                        <div key={h} className="v-time-cell">
+                            {h > 12 ? h - 12 : h} {h >= 12 ? 'PM' : 'AM'}
+                        </div>
+                    ))}
+                </div>
+                {DAYS.map((day, dayIndex) => (
+                    <div key={day} className="v-day-col">
+                        <div className="v-header-cell">{day}</div>
+                        <div className="v-day-content">
+                            {/* Grid Lines */}
+                            {HOURS.map(h => (
+                                <div
+                                    key={h}
+                                    className="v-hour-cell"
+                                    onClick={() => handleGridClick(dayIndex, h)}
+                                />
+                            ))}
+
+                            {/* Slots for this day */}
+                            {slots.filter(s => s.dayOfWeek === dayIndex).map((slot, idx) => {
+                                const startMin = timeToMinutes(slot.startTime);
+                                const endMin = timeToMinutes(slot.endTime);
+                                const duration = endMin - startMin;
+                                const gridStartMin = 7 * 60;
+
+                                const top = ((startMin - gridStartMin) / 60) * 50; // 50px per hour
+                                const height = (duration / 60) * 50;
+
+                                // Find original index in full array match
+                                const originalIndex = slots.indexOf(slot);
+
+                                return (
+                                    <div
+                                        key={idx}
+                                        className="v-slot"
+                                        style={{ top: `${top}px`, height: `${height}px` }}
+                                        onClick={(e) => handleSlotClick(e, originalIndex)}
                                     >
-                                        Copy
-                                    </button>
-                                </>
-                            ) : (
-                                <span className="unavailable-text">Unavailable</span>
-                            )}
+                                        <span>{slot.startTime} - {slot.endTime}</span>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
                 ))}
             </div>
 
-            <div className="actions">
-                <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                    {saving ? 'Saving...' : (
-                        <>
-                            <Save size={18} className="mr-2" />
-                            Save Changes
-                        </>
-                    )}
+            {editingSlot && (
+                <>
+                    <div className="popover-backdrop" onClick={() => setEditingSlot(null)} />
+                    <div className="edit-popover">
+                        <div className="popover-header">
+                            <h3>Edit Availability</h3>
+                            <button className="icon-btn" onClick={() => setEditingSlot(null)}><X size={16} /></button>
+                        </div>
+
+                        <div className="popover-body">
+                            <label>Start</label>
+                            <select
+                                value={editingSlot.slot.startTime}
+                                onChange={(e) => updateSlot(editingSlot.index, { startTime: e.target.value })}
+                            >
+                                {timeOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                            </select>
+
+                            <label>End</label>
+                            <select
+                                value={editingSlot.slot.endTime}
+                                onChange={(e) => updateSlot(editingSlot.index, { endTime: e.target.value })}
+                            >
+                                {timeOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                            </select>
+                        </div>
+
+                        <div className="popover-footer">
+                            <button className="btn btn-danger" onClick={() => deleteSlot(editingSlot.index)}>
+                                <Trash2 size={16} /> Remove
+                            </button>
+                            <button className="btn btn-primary" onClick={() => setEditingSlot(null)}>Done</button>
+                        </div>
+                    </div>
+                </>
+            )}
+
+            <div className="actions-bar">
+                <button className="btn btn-primary save-btn" onClick={handleSave} disabled={saving}>
+                    {saving ? 'Saving...' : <><Save size={18} /> Save Changes</>}
                 </button>
             </div>
 
             <style jsx>{`
         .availability-page {
-          max-width: 800px;
-          margin: 0 auto;
-          padding-bottom: 4rem;
+          padding-bottom: 5rem;
         }
-
-        .header {
-          margin-bottom: var(--spacing-xl);
-        }
-
-        .header h1 {
-          font-size: 2rem;
-          margin-bottom: var(--spacing-xs);
-        }
-
-        .header p {
-          color: var(--color-text-secondary);
-        }
-
-        .schedule-card {
+        
+        .header { margin-bottom: 2rem; }
+        
+        .visual-grid-container {
+          display: flex;
           background: var(--color-bg-main);
           border: 1px solid var(--color-border);
           border-radius: var(--radius-lg);
-          padding: var(--spacing-lg);
-          box-shadow: var(--shadow-sm);
-        }
-
-        .day-row {
-          display: flex;
-          align-items: center;
-          padding: var(--spacing-md) 0;
-          border-bottom: 1px solid var(--color-border);
-        }
-
-        .day-row:last-child {
-          border-bottom: none;
-        }
-
-        .day-check {
-          width: 150px;
-          display: flex;
-          align-items: center;
-          gap: var(--spacing-md);
-          font-weight: 500;
+          overflow: hidden;
         }
         
-        .day-check input {
-          width: 18px;
-          height: 18px;
-          accent-color: var(--color-accent);
-          cursor: pointer;
+        .v-time-col {
+          width: 60px;
+          flex-shrink: 0;
+          border-right: 1px solid var(--color-border);
         }
-
-        .day-check label {
-          cursor: pointer;
-        }
-
-        .time-selectors {
+        
+        .v-day-col {
           flex: 1;
+          border-right: 1px solid var(--color-border);
+          min-width: 100px;
+        }
+        .v-day-col:last-child { border-right: none; }
+        
+        .v-header-cell {
+          height: 40px;
           display: flex;
           align-items: center;
-          gap: var(--spacing-md);
-        }
-
-        select {
-          padding: 0.5rem;
-          border: 1px solid var(--color-border);
-          border-radius: var(--radius-md);
+          justify-content: center;
+          border-bottom: 1px solid var(--color-border);
+          font-weight: 600;
           background: var(--color-bg-secondary);
-          color: var(--color-text-main);
-          font-family: inherit;
-        }
-
-        .separator {
           color: var(--color-text-secondary);
-        }
-
-        .unavailable-text {
-          color: var(--color-text-light);
-          font-style: italic;
-        }
-
-        .copy-btn {
-          margin-left: auto;
-          font-size: 0.8rem;
-          color: var(--color-accent);
-          opacity: 0;
-          transition: opacity var(--transition-fast);
-        }
-
-        .day-row:hover .copy-btn {
-          opacity: 1;
+          font-size: 0.9rem;
         }
         
-        .day-row:hover .copy-btn:hover {
-          text-decoration: underline;
-        }
-
-        .actions {
-          margin-top: var(--spacing-xl);
+        .v-time-cell {
+          height: 50px;
           display: flex;
-          justify-content: flex-end;
+          align-items: flex-start;
+          justify-content: center;
+          padding-top: 4px;
+          font-size: 0.75rem;
+          color: var(--color-text-light);
+          border-bottom: 1px solid rgba(0,0,0,0.05); /* subtle divider */
         }
         
-        @media (max-width: 600px) {
-          .day-row {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: var(--spacing-sm);
-          }
-          
-          .time-selectors {
-            width: 100%;
-            justify-content: space-between;
-          }
+        .v-day-content {
+          position: relative;
+          height: ${HOURS.length * 50}px; /* 15 hours * 50px */
+        }
+        
+        .v-hour-cell {
+          height: 50px;
+          border-bottom: 1px solid var(--color-border);
+          cursor: pointer;
+        }
+        .v-hour-cell:hover {
+          background: rgba(var(--color-accent-rgb), 0.05);
+        }
+        
+        .v-slot {
+          position: absolute;
+          left: 4px;
+          right: 4px;
+          background: var(--color-accent);
+          color: white;
+          border-radius: var(--radius-sm);
+          font-size: 0.75rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          border: 1px solid white;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+          overflow: hidden;
+          z-index: 10;
+        }
+        
+        .popover-backdrop {
+          position: fixed;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background: rgba(0,0,0,0.3);
+          z-index: 90;
+        }
+        
+        .edit-popover {
+          position: fixed;
+          top: 50%; left: 50%;
+          transform: translate(-50%, -50%);
+          background: var(--color-bg-main);
+          padding: var(--spacing-lg);
+          border-radius: var(--radius-lg);
+          box-shadow: var(--shadow-xl);
+          z-index: 100;
+          width: 300px;
+          border: 1px solid var(--color-border);
+        }
+        
+        .popover-header {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: var(--spacing-md);
+        }
+        
+        .popover-body {
+          display: flex;
+          flex-direction: column;
+          gap: var(--spacing-sm);
+          margin-bottom: var(--spacing-md);
+        }
+        
+        .popover-footer {
+          display: flex;
+          justify-content: space-between;
+        }
+        
+        .actions-bar {
+          position: fixed;
+          bottom: 2rem;
+          right: 2rem;
+          z-index: 80;
+        }
+        
+        .icon-btn {
+          padding: 4px;
+          border-radius: 50%;
+        }
+        .icon-btn:hover { background: var(--color-bg-secondary); }
+        
+        .btn-danger {
+          color: var(--color-error);
+          background: rgba(239, 68, 68, 0.1);
+        }
+        .btn-danger:hover { background: rgba(239, 68, 68, 0.2); }
+        
+        select {
+          padding: 8px;
+          border-radius: var(--radius-md);
+          border: 1px solid var(--color-border);
+          background: var(--color-bg-secondary);
         }
       `}</style>
         </div>

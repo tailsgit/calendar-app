@@ -264,6 +264,6 @@ model Availability {
   userId    String
   user      User    @relation(fields: [userId], references: [id])
 
-  @@unique([userId, dayOfWeek])
+  // @@unique([userId, dayOfWeek]) - Removed to allow multiple slots per day
 }
 

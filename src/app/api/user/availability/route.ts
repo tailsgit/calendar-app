@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     }
 }
 
-// PUT - Update user's availability
+// PUT - Update user's availability (Full Replacement)
 export async function PUT(request: NextRequest) {
     try {
         const session = await auth();
@@ -37,36 +37,23 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ error: 'Invalid data format' }, { status: 400 });
         }
 
-        if (!session?.user?.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
         const userId = session.user.id;
 
-        // Transaction to update all slots
-        await prisma.$transaction(
-            availability.map((slot: any) =>
-                prisma.availability.upsert({
-                    where: {
-                        userId_dayOfWeek: {
-                            userId: userId,
-                            dayOfWeek: slot.dayOfWeek,
-                        },
-                    },
-                    update: {
-                        startTime: slot.startTime,
-                        endTime: slot.endTime,
-                        isEnabled: slot.isEnabled,
-                    },
-                    create: {
-                        userId: userId,
-                        dayOfWeek: slot.dayOfWeek,
-                        startTime: slot.startTime,
-                        endTime: slot.endTime,
-                        isEnabled: slot.isEnabled,
-                    },
-                })
-            )
-        );
+        // Transaction: Delete all existing, then create new
+        await prisma.$transaction([
+            prisma.availability.deleteMany({
+                where: { userId },
+            }),
+            prisma.availability.createMany({
+                data: availability.map((slot: any) => ({
+                    userId,
+                    dayOfWeek: slot.dayOfWeek,
+                    startTime: slot.startTime,
+                    endTime: slot.endTime,
+                    isEnabled: true, // Always enabled if present in grid
+                })),
+            }),
+        ]);
 
         return NextResponse.json({ success: true });
     } catch (error) {
