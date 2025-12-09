@@ -168,9 +168,9 @@ export default function UserProfilePage() {
         <div className="calendar-header">
           <h2>{user.name}'s Calendar</h2>
           <div className="week-nav">
-            <button onClick={() => setSelectedDate(addDays(selectedDate, -7))}>← Prev Week</button>
+            <button className="nav-btn" onClick={() => setSelectedDate(addDays(selectedDate, -7))}>← Prev Week</button>
             <span>{format(weekStart, 'MMM d')} - {format(addDays(weekStart, 4), 'MMM d, yyyy')}</span>
-            <button onClick={() => setSelectedDate(addDays(selectedDate, 7))}>Next Week →</button>
+            <button className="nav-btn" onClick={() => setSelectedDate(addDays(selectedDate, 7))}>Next Week →</button>
           </div>
         </div>
 
@@ -344,6 +344,20 @@ export default function UserProfilePage() {
           display: flex;
           align-items: center;
           gap: var(--spacing-md);
+          color: var(--color-text-main);
+        }
+
+        .nav-btn {
+          color: var(--color-text-secondary);
+          padding: var(--spacing-sm);
+          border-radius: var(--radius-md);
+          transition: all var(--transition-fast);
+          white-space: nowrap;
+        }
+
+        .nav-btn:hover {
+          color: var(--color-text-main);
+          background: var(--color-bg-secondary);
         }
 
         .calendar-grid {
@@ -375,7 +389,7 @@ export default function UserProfilePage() {
         }
 
         .day-col.today {
-          background: #EBF5FF;
+          background: var(--color-bg-highlight);
         }
 
         .time-slot {
@@ -389,7 +403,7 @@ export default function UserProfilePage() {
         }
 
         .time-slot.free:hover {
-          background: #EBF5FF;
+          background: var(--color-bg-highlight);
           cursor: pointer;
         }
 
