@@ -59,11 +59,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             return session;
         },
     },
-    events: {
-        async error(message) {
-            console.error("NextAuth Error Event:", message);
-        },
-    },
+
     pages: {
         signIn: '/auth/signin',
     },
