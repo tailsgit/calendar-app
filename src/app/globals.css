@@ -23,6 +23,12 @@
   --color-warning: #F59E0B;
   --color-error: #EF4444;
 
+  /* Heatmap specific colors */
+  --color-heatmap-free: #10B981;
+  /* Emerald-500 */
+  --color-heatmap-busy: #EF4444;
+  /* Red-500 */
+
   /* Spacing */
   --spacing-xs: 0.25rem;
   --spacing-sm: 0.5rem;
@@ -77,6 +83,12 @@
   --color-success: #34D399;
   --color-warning: #FBBF24;
   --color-error: #F87171;
+
+  /* Heatmap specific colors (Deep for dark mode) */
+  --color-heatmap-free: #065F46;
+  /* Emerald-800 */
+  --color-heatmap-busy: #7F1D1D;
+  /* Red-900 */
 
   /* Dark Mode Shadows (More opacity) */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
