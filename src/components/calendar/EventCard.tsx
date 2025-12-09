@@ -53,13 +53,21 @@ export default function EventCard({
   const height = durationMin;
   const [isHovered, setIsHovered] = useState(false);
 
-  // Calculate current visual properties based on hover state
-  const effectiveHeight = isHovered ? Math.max(height, 65) : height;
-  const showTitle = effectiveHeight >= 25;
-  const showTime = effectiveHeight >= 50;
+  // Calculate visual properties
+  const minExpandedHeight = 80; // Enough for title + time
+  const expandedHeightBase = Math.max(height, minExpandedHeight);
 
-  const isPast = endTime < new Date();
-  const isMultiDay = endTime.getDate() !== startTime.getDate() || endTime.getMonth() !== startTime.getMonth();
+  // Calculate vertical growth to center the expansion
+  const heightDiff = expandedHeightBase - height;
+
+  // Hover State Calculations
+  const finalHeight = isHovered ? expandedHeightBase : height;
+  const finalTop = isHovered ? top - (heightDiff / 2) : top;
+  const finalLeft = isHovered ? '2px' : (left || '4px'); // Expand to full width (almost)
+  const finalWidth = isHovered ? 'calc(100% - 8px)' : (width || 'calc(100% - 8px)');
+
+  const showTitle = finalHeight >= 25;
+  const showTime = finalHeight >= 40;
 
   return (
     <div
@@ -67,17 +75,17 @@ export default function EventCard({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       style={{
-        top: `${top}px`,
-        height: `${effectiveHeight}px`,
-        left: left || '4px',
-        width: width || 'calc(100% - 8px)',
-        zIndex: isHovered ? 50 : (zIndex || 1),
+        top: `${finalTop}px`,
+        height: `${finalHeight}px`,
+        left: finalLeft,
+        width: finalWidth,
+        zIndex: isHovered ? 100 : (zIndex || 1),
         backgroundColor: status === 'PROPOSED' ? 'white' : color,
         color: status === 'PROPOSED' ? color : 'white',
         borderLeft: `4px solid ${color}`,
         border: status === 'PROPOSED' ? `2px dashed ${color}` : undefined,
         borderLeftStyle: status === 'PROPOSED' ? 'solid' : undefined,
-        boxShadow: isHovered ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
+        boxShadow: isHovered ? '0 8px 16px rgba(0,0,0,0.25)' : 'none',
       }}
       onClick={(e) => {
         e.stopPropagation();
