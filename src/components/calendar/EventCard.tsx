@@ -60,6 +60,9 @@ export default function EventCard({
   // Calculate vertical growth to center the expansion
   const heightDiff = expandedHeightBase - height;
 
+  const isPast = endTime < new Date();
+  const isMultiDay = endTime.getDate() !== startTime.getDate() || endTime.getMonth() !== startTime.getMonth();
+
   // Hover State Calculations
   const finalHeight = isHovered ? expandedHeightBase : height;
   const finalTop = isHovered ? top - (heightDiff / 2) : top;
