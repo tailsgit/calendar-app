@@ -20,15 +20,21 @@ async function testAvailability() {
     // 2. Ensure "Working Hours" exist (9-5 Mon-Fri)
     console.log("Ensuring working hours (9-5)...");
     const weekDays = [0, 1, 2, 3, 4, 5, 6]; // All days
-    for (const day of weekDays) {
-        await prisma.availability.upsert({
-            where: {
-                userId_dayOfWeek: { userId: user.id, dayOfWeek: day }
-            },
-            update: { startTime: '09:00', endTime: '17:00', isEnabled: true },
-            create: { userId: user.id, dayOfWeek: day, startTime: '09:00', endTime: '17:00', isEnabled: true }
-        });
-    }
+    // Clear existing availability
+    await prisma.availability.deleteMany({
+        where: { userId: user.id }
+    });
+
+    // Create default scheme
+    await prisma.availability.createMany({
+        data: weekDays.map(day => ({
+            userId: user.id,
+            dayOfWeek: day,
+            startTime: '09:00',
+            endTime: '17:00',
+            isEnabled: true
+        }))
+    });
 
     // 3. Define Test Range (Tomorrow)
     const tomorrow = addDays(new Date(), 1);
