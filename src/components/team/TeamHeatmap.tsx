@@ -129,8 +129,8 @@ export default function TeamHeatmap({ selectedUsers, currentDate }: TeamHeatmapP
         }}>
             {/* Legend / Key */}
             <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
-                <div style={{ display: 'flex', alignItems: 'center' }}><div style={{ width: 12, height: 12, backgroundColor: '#FFD700', borderRadius: 2, marginRight: 6 }}></div> Free (Gold)</div>
-                <div style={{ display: 'flex', alignItems: 'center' }}><div style={{ width: 12, height: 12, backgroundColor: '#FF6B6B', borderRadius: 2, marginRight: 6 }}></div> Busy (Red)</div>
+                <div style={{ display: 'flex', alignItems: 'center' }}><div style={{ width: 12, height: 12, backgroundColor: 'var(--color-success)', borderRadius: 2, marginRight: 6 }}></div> Free</div>
+                <div style={{ display: 'flex', alignItems: 'center' }}><div style={{ width: 12, height: 12, backgroundColor: 'var(--color-error)', borderRadius: 2, marginRight: 6 }}></div> Busy</div>
             </div>
 
             {/* CSS Grid Container */}
@@ -184,8 +184,8 @@ export default function TeamHeatmap({ selectedUsers, currentDate }: TeamHeatmapP
 
                             // Color Logic
                             let backgroundColor = 'var(--color-bg-main)'; // Default/Unknown
-                            if (isAllFree) backgroundColor = '#FFD700'; // Gold
-                            if (isBusy) backgroundColor = '#FF6B6B'; // Red
+                            if (isAllFree) backgroundColor = 'var(--color-success)';
+                            if (isBusy) backgroundColor = 'var(--color-error)';
 
                             return (
                                 <div
@@ -206,7 +206,7 @@ export default function TeamHeatmap({ selectedUsers, currentDate }: TeamHeatmapP
                                             {format(new Date().setHours(hour, 0), 'h:mm a')}
                                         </div>
                                         {isAllFree ? (
-                                            <div style={{ color: '#FFD700' }}>✨ Perfect Match</div>
+                                            <div style={{ color: 'var(--color-success)' }}>✨ Perfect Match</div>
                                         ) : (
                                             <div>
                                                 <div style={{ color: '#ff8787', marginBottom: 2 }}>Conflict:</div>
