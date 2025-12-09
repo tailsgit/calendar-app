@@ -24,16 +24,23 @@ import { useRouter } from 'next/navigation';
 
 interface RequestCardProps {
     request: Request;
-    onRespond: (id: string, type: string, action: 'accept' | 'decline') => Promise<void>;
+    onRespond: (id: string, type: string, action: 'accept' | 'decline', reason?: string) => Promise<void>;
 }
 
 export default function RequestCard({ request, onRespond }: RequestCardProps) {
     const [status, setStatus] = useState<'idle' | 'accepting' | 'declining'>('idle');
+    const [showDeclineInput, setShowDeclineInput] = useState(false);
+    const [declineReason, setDeclineReason] = useState('');
     const router = useRouter();
 
     const handleAction = async (action: 'accept' | 'decline') => {
+        if (action === 'decline' && !showDeclineInput) {
+            setShowDeclineInput(true);
+            return;
+        }
+
         setStatus(action === 'accept' ? 'accepting' : 'declining');
-        await onRespond(request.id, request.type, action);
+        await onRespond(request.id, request.type, action, declineReason);
         // Parent will likely remove this card, so status reset might not matter
     };
 
@@ -76,30 +83,49 @@ export default function RequestCard({ request, onRespond }: RequestCardProps) {
                     <span className="badge location">{request.locationType}</span>
                     <span className="badge duration">{request.duration} min</span>
                 </div>
+
+                {showDeclineInput && (
+                    <div className="decline-input-area">
+                        <textarea
+                            className="reason-input"
+                            placeholder="Please explain why you are declining..."
+                            value={declineReason}
+                            onChange={(e) => setDeclineReason(e.target.value)}
+                            autoFocus
+                        />
+                        <div className="input-actions">
+                            <button className="btn btn-text" onClick={() => setShowDeclineInput(false)}>Cancel</button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             <div className="card-actions">
                 <button
                     className="btn decline"
                     onClick={() => handleAction('decline')}
-                    disabled={status !== 'idle'}
+                    disabled={status !== 'idle' || (showDeclineInput && !declineReason.trim())}
                 >
-                    {status === 'declining' ? 'Declining...' : 'Decline'}
+                    {status === 'declining' ? 'Declining...' : (showDeclineInput ? 'Confirm Decline' : 'Decline')}
                 </button>
-                <button
-                    className="btn reschedule"
-                    onClick={handleReschedule}
-                    disabled={status !== 'idle'}
-                >
-                    Reschedule
-                </button>
-                <button
-                    className="btn accept"
-                    onClick={() => handleAction('accept')}
-                    disabled={status !== 'idle'}
-                >
-                    {status === 'accepting' ? 'Accepting...' : 'Accept'}
-                </button>
+                {!showDeclineInput && (
+                    <>
+                        <button
+                            className="btn reschedule"
+                            onClick={handleReschedule}
+                            disabled={status !== 'idle'}
+                        >
+                            Reschedule
+                        </button>
+                        <button
+                            className="btn accept"
+                            onClick={() => handleAction('accept')}
+                            disabled={status !== 'idle'}
+                        >
+                            {status === 'accepting' ? 'Accepting...' : 'Accept'}
+                        </button>
+                    </>
+                )}
             </div>
 
             <style jsx>{`
@@ -190,9 +216,33 @@ export default function RequestCard({ request, onRespond }: RequestCardProps) {
                     text-transform: capitalize;
                 }
 
+                .decline-input-area {
+                    margin-bottom: 16px;
+                    animation: fadeIn 0.2s;
+                }
+
+                .reason-input {
+                    width: 100%;
+                    padding: 10px;
+                    border: 1px solid var(--color-border);
+                    border-radius: 8px;
+                    background: var(--color-bg-secondary);
+                    color: var(--color-text-main);
+                    min-height: 80px;
+                    margin-bottom: 8px;
+                    font-family: inherit;
+                    font-size: 0.9rem;
+                    resize: vertical;
+                }
+                .reason-input:focus { outline: none; border-color: var(--color-error); }
+
+                .input-actions { display: flex; justify-content: flex-end; }
+                .btn-text { background: none; border: none; color: var(--color-text-secondary); cursor: pointer; font-size: 0.85rem; padding: 4px 8px; }
+                .btn-text:hover { color: var(--color-text-main); }
+
                 .card-actions {
                     display: grid;
-                    grid-template-columns: 1fr 1fr 1fr;
+                    grid-template-columns: ${showDeclineInput ? '1fr' : '1fr 1fr 1fr'};
                     gap: 8px;
                 }
 
@@ -230,6 +280,8 @@ export default function RequestCard({ request, onRespond }: RequestCardProps) {
                 .accept:hover:not(:disabled) { opacity: 0.9; }
 
                 .btn:disabled { opacity: 0.5; cursor: default; }
+
+                @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
             `}</style>
         </div>
     );

@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { id, type, action } = body; // id is either MeetingRequestId or ParticipantId
+        const { id, type, action, declineReason } = body; // id is either MeetingRequestId or ParticipantId
 
         if (!['accept', 'decline'].includes(action)) {
             return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
@@ -55,7 +55,23 @@ export async function POST(request: NextRequest) {
                 });
                 // Notifications... (simplified for brevity, assume similar to original)
             } else {
-                await prisma.meetingRequest.update({ where: { id }, data: { status: 'DECLINED' } });
+                await prisma.meetingRequest.update({
+                    where: { id },
+                    data: {
+                        status: 'DECLINED',
+                        responseNote: declineReason
+                    }
+                });
+
+                // Send Email Notification
+                await sendDeclineNotification({
+                    senderEmail: session.user.email!,
+                    senderName: session.user.name!,
+                    recipientEmail: mr.requester.email!,
+                    recipientName: mr.requester.name!,
+                    meetingTitle: mr.title,
+                    declineReason
+                });
             }
 
         } else if (type === 'event_invite') {
@@ -72,10 +88,24 @@ export async function POST(request: NextRequest) {
             const newStatus = action === 'accept' ? 'ACCEPTED' : 'DECLINED';
             await prisma.participant.update({
                 where: { id },
-                data: { status: newStatus }
+                data: {
+                    status: newStatus,
+                    responseNote: action === 'decline' ? declineReason : undefined
+                }
             });
 
             // Notify Owner
+            if (action === 'decline') {
+                await sendDeclineNotification({
+                    senderEmail: session.user.email!,
+                    senderName: session.user.name!,
+                    recipientEmail: participant.event.owner.email!,
+                    recipientName: participant.event.owner.name!,
+                    meetingTitle: participant.event.title,
+                    declineReason
+                });
+            }
+
             const verb = action === 'accept' ? 'accepted' : 'declined';
             await createNotification({
                 userId: participant.event.ownerId,

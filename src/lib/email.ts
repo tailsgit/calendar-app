@@ -423,8 +423,9 @@ export async function sendDeclineNotification(data: {
   recipientEmail: string;
   recipientName: string;
   meetingTitle: string;
+  declineReason?: string;
 }) {
-  const { senderEmail, senderName, senderCredentials, recipientEmail, recipientName, meetingTitle } = data;
+  const { senderEmail, senderName, senderCredentials, recipientEmail, recipientName, meetingTitle, declineReason } = data;
 
   const html = `
     <!DOCTYPE html>
@@ -437,6 +438,8 @@ export async function sendDeclineNotification(data: {
         .header-text { color: #EF4444; font-weight: 700; font-size: 24px; letter-spacing: -0.5px; }
         .greeting { color: #334155; font-size: 16px; line-height: 1.6; margin-bottom: 32px; text-align: center; }
         
+        .reason-box { background: #fee2e2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; color: #b91c1c; margin-bottom: 32px; font-style: italic; }
+
         .footer { text-align: center; color: #94A3B8; font-size: 13px; margin-top: 40px; border-top: 1px solid #E2E8F0; padding-top: 24px; }
       </style>
     </head>
@@ -451,6 +454,12 @@ export async function sendDeclineNotification(data: {
           <strong>${senderName}</strong> has declined the meeting request:<br/>
           <strong>${meetingTitle}</strong>
         </div>
+        
+        ${declineReason ? `
+        <div class="reason-box">
+          "${declineReason}"
+        </div>
+        ` : ''}
         
         <div class="footer">
           You can propose a new time in the app.

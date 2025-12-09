@@ -7,8 +7,8 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("POSTGRES_PRISMA_URL") // Uses connection pooling
-  directUrl = env("POSTGRES_URL_NON_POOLING") // Uses direct connection
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL")
 }
 
 model User {
@@ -146,6 +146,7 @@ model MeetingRequest {
   locationType String // VIDEO, PHONE, IN_PERSON
   locationDetails String?
   message   String?
+  responseNote String? // Reason for decline or other notes
   
   status    String   @default("PENDING") // PENDING, ACCEPTED, DECLINED
   
