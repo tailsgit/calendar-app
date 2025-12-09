@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
         await createNotification({
             userId: recipientId,
             type: 'booking',
-            title: '📅 New Meeting Request',
+            title: 'New Meeting Request',
             message: `${session.user.name} requested: "${title}"`,
             link: `/requests`,
         });

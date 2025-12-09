@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Calendar } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -11,8 +12,27 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const [inboxCount, setInboxCount] = useState(0);
 
   const isActive = (path: string) => pathname === path;
+
+  useEffect(() => {
+    // Only fetch if authenticated (assuming Sidebar is used in auth context, which it is)
+    // Simple polling or fetch on mount
+    const fetchCount = async () => {
+      try {
+        const res = await fetch('/api/user/requests');
+        if (res.ok) {
+          const data = await res.json();
+          setInboxCount(data.requests.length);
+        }
+      } catch (e) {
+        // Silently fail to avoid cluttering logs for simple badge
+      }
+    };
+
+    fetchCount();
+  }, [pathname]); // Refresh on navigation
 
   return (
     <aside className={`sidebar ${isOpen ? 'open' : ''}`} role="navigation" aria-label="Main navigation">
@@ -29,6 +49,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         </Link>
         <Link href="/requests" className={`nav-item nav-inbox ${isActive('/requests') ? 'active' : ''}`} aria-current={isActive('/requests') ? 'page' : undefined}>
           <span className="text">Inbox</span>
+          {inboxCount > 0 && <span className="badge">{inboxCount}</span>}
         </Link>
         <Link href="/team" className={`nav-item nav-team ${isActive('/team') ? 'active' : ''}`} aria-current={isActive('/team') ? 'page' : undefined}>
           <span className="text">Team Calendar</span>
@@ -97,17 +118,28 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         transition: all var(--transition-fast, 0.15s ease);
         font-weight: 600; /* Slightly bolder for text-only */
         font-size: 1.05rem; /* Slightly larger */
+        position: relative;
         }
 
         .nav-item:hover {
-          background - color: var(--color-bg-secondary);
+          background-color: var(--color-bg-secondary);
         color: var(--color-text-main);
         padding-left: var(--spacing-xl); /* Subtle indent on hover */
         }
 
         .nav-item.active {
-          background - color: var(--color-bg-secondary);
+          background-color: var(--color-bg-secondary);
         color: var(--color-accent);
+        }
+
+        .badge {
+          background: var(--color-error);
+          color: white;
+          font-size: 0.75rem;
+          padding: 2px 8px;
+          border-radius: 12px;
+          margin-left: auto;
+          font-weight: 700;
         }
 
         .sidebar-footer {

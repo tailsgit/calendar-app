@@ -67,7 +67,7 @@ export async function POST(
         await createNotification({
             userId: group.leaderId,
             type: 'booking',
-            title: '👋 New Join Request',
+            title: 'New Join Request',
             message: `${session.user.name || 'Someone'} wants to join "${group.name}"`,
             link: `/groups/${group.id}`,
         });

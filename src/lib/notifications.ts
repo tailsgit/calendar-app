@@ -36,7 +36,7 @@ export async function notifyNewBooking(data: {
     return createNotification({
         userId: data.hostId,
         type: 'booking',
-        title: '🎉 New Booking!',
+        title: 'New Booking',
         message: `${data.guestName} booked "${data.meetingTitle}" on ${data.date} at ${data.time}`,
         link: '/',
     });
@@ -50,7 +50,7 @@ export async function notifyMeetingReminder(data: {
     return createNotification({
         userId: data.userId,
         type: 'reminder',
-        title: '⏰ Meeting Reminder',
+        title: 'Meeting Reminder',
         message: `"${data.meetingTitle}" starts at ${data.startTime}`,
         link: '/',
     });
@@ -64,7 +64,7 @@ export async function notifyMeetingUpdate(data: {
     return createNotification({
         userId: data.userId,
         type: 'update',
-        title: '🔄 Meeting Updated',
+        title: 'Meeting Updated',
         message: `"${data.meetingTitle}" has been updated: ${data.change}`,
         link: '/',
     });
@@ -78,7 +78,7 @@ export async function notifyMeetingCancelled(data: {
     return createNotification({
         userId: data.userId,
         type: 'cancelled',
-        title: '❌ Meeting Cancelled',
+        title: 'Meeting Cancelled',
         message: `"${data.meetingTitle}" was cancelled by ${data.cancelledBy}`,
         link: '/',
     });
