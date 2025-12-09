@@ -112,6 +112,7 @@ export async function POST(request: NextRequest) {
             duration,
             locationType,
             description: message,
+            requestId: meetingRequest.id, // Pass ID to enable Action Buttons in email
         });
 
         return NextResponse.json({ meetingRequest });

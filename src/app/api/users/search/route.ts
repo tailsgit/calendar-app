@@ -58,10 +58,10 @@ export async function GET(request: NextRequest) {
                 userId: { not: session.user.id }, // Exclude self
                 user: query ? {
                     OR: [
-                        { name: { contains: query } },
-                        { email: { contains: query } },
-                        { department: { contains: query } },
-                        { title: { contains: query } },
+                        { name: { contains: query, mode: 'insensitive' } },
+                        { email: { contains: query, mode: 'insensitive' } },
+                        { department: { contains: query, mode: 'insensitive' } },
+                        { title: { contains: query, mode: 'insensitive' } },
                     ],
                 } : undefined,
             },

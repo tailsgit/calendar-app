@@ -293,19 +293,12 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json();
-        const { title, description, startTime, endTime, locationType } = body;
+        const { title, description, startTime, endTime, locationType, attendees } = body;
 
         // Basic validation
         if (!title || !startTime || !endTime) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
-
-        // Availability check removed to allow owner to schedule freely
-        /*
-        if (user) {
-           ... validation logic ...
-        }
-        */
 
         const event = await prisma.event.create({
             data: {
@@ -317,6 +310,12 @@ export async function POST(request: Request) {
                 ownerId: session.user.id,
                 color: '#6366F1', // Default Indigo
                 status: 'SCHEDULED',
+                participants: attendees && attendees.length > 0 ? {
+                    create: attendees.map((userId: string) => ({
+                        userId,
+                        status: 'PENDING'
+                    }))
+                } : undefined
             },
         });
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { format } from 'date-fns';
+import { Mic } from 'lucide-react';
 
 type ViewMode = 'day' | 'week' | 'month';
 
@@ -72,7 +73,23 @@ export default function CalendarHeader({
         </button>
       </div>
 
-      <div className="actions">
+      <div className="actions" style={{ display: 'flex', gap: '8px' }}>
+        <button
+          className="btn btn-secondary icon-btn-large"
+          onClick={() => {
+            // Trigger global listener for Cmd+K
+            document.dispatchEvent(new KeyboardEvent('keydown', {
+              key: 'k',
+              code: 'KeyK',
+              metaKey: true,
+              ctrlKey: true,
+              bubbles: true
+            }));
+          }}
+          title="Voice Command (Cmd+K)"
+        >
+          <Mic size={20} />
+        </button>
         <button onClick={onNewMeeting} className="btn btn-primary">+ New Meeting</button>
       </div>
 
@@ -130,6 +147,13 @@ export default function CalendarHeader({
           background-color: var(--color-bg-main);
           color: var(--color-text-main);
           box-shadow: var(--shadow-sm);
+        }
+
+        .icon-btn-large {
+            padding: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
       `}</style>
     </div>

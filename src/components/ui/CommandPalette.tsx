@@ -1,31 +1,21 @@
-
 "use client";
 
 import { useEffect, useState } from 'react';
-import { Command } from 'cmdk'; // Radix-like accessible command menu
-import * as chrono from 'chrono-node';
 import { useRouter } from 'next/navigation';
-import {
-    Calendar,
-    Settings,
-    Users,
-    Plus,
-    Search,
-    Zap,
-    ArrowRight
-} from 'lucide-react';
 import Modal from './Modal';
 import NewMeetingForm from '../meeting/NewMeetingForm';
-import { format } from 'date-fns';
+import VoiceInput from './VoiceInput';
+import { X } from 'lucide-react';
 
 export default function CommandPalette() {
     const [open, setOpen] = useState(false);
-    const [search, setSearch] = useState('');
-    const router = useRouter();
 
-    // State for Smart Create Modal
+    // State for Smart Create Modal (New Meeting Form)
     const [smartCreateOpen, setSmartCreateOpen] = useState(false);
-    const [smartData, setSmartData] = useState<{ date?: string, time?: string, title?: string }>({});
+    const [smartData, setSmartData] = useState<{ date?: Date, endDate?: Date, title?: string, description?: string, location?: string, attendees?: any[] }>({});
+
+    const router = useRouter();
+    const [lastCreatedEvent, setLastCreatedEvent] = useState<any>(null);
 
     // Toggle with Cmd+K
     useEffect(() => {
@@ -40,33 +30,54 @@ export default function CommandPalette() {
         return () => document.removeEventListener('keydown', down);
     }, []);
 
-    const handleSmartAction = () => {
-        // Parse the search query
-        const results = chrono.parse(search);
+    const handleVoiceResult = async (data: { title: string, start: Date, end?: Date, description?: string, location?: string, attendees?: any[], isUpdate?: boolean }) => {
+        // CONTEXT AWARENESS: "Move that" logic
+        if (data.isUpdate && lastCreatedEvent) {
+            // Update the last created event
+            try {
+                // We assume 'start' is the new start time. We preserve duration if end not explicit?
+                // VoiceInput usually calculates end from default duration if not specified, 
+                // but for updates, we might want to keep original duration if user just said "Move to 5pm".
+                // For simplicity, let's use the provided start/end from VoiceInput which likely defaults to 1h if not parsed.
+                // Improvement: If VoiceInput didn't find specific end, calculate from lastCreatedEvent duration.
 
-        if (results.length > 0) {
-            const result = results[0];
-            const date = result.start.date();
-            const dateStr = format(date, 'yyyy-MM-dd');
-            const timeStr = format(date, 'HH:mm');
+                const response = await fetch(`/api/events/${lastCreatedEvent.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: lastCreatedEvent.title, // Keep title
+                        description: lastCreatedEvent.description,
+                        startTime: data.start.toISOString(),
+                        endTime: data.end ? data.end.toISOString() : new Date(data.start.getTime() + (new Date(lastCreatedEvent.endTime).getTime() - new Date(lastCreatedEvent.startTime).getTime())).toISOString(),
+                        locationType: lastCreatedEvent.locationType,
+                        recurrence: lastCreatedEvent.recurrence
+                    })
+                });
 
-            // Naive title extraction: Remove the matched date text from the original string
-            const title = search.replace(result.text, '').trim() || 'New Meeting';
-
-            setSmartData({
-                date: dateStr,
-                time: timeStr,
-                title: title
-            });
-            setOpen(false);
-            setSmartCreateOpen(true);
-        } else {
-            // Fallback if no date found
-            setSmartData({ title: search });
-            setOpen(false);
-            setSmartCreateOpen(true);
+                if (response.ok) {
+                    const updated = await response.json();
+                    setLastCreatedEvent(updated);
+                    router.refresh();
+                    setOpen(false);
+                    // Could show a toast here: "Rescheduled to ..."
+                    return;
+                }
+            } catch (e) {
+                console.error("Failed to update context event", e);
+            }
         }
-        setSearch('');
+
+        // Standard Create Flow
+        setSmartData({
+            title: data.title,
+            date: data.start,
+            endDate: data.end,
+            description: data.description,
+            location: data.location,
+            attendees: data.attendees
+        });
+        setOpen(false); // Close voice modal
+        setSmartCreateOpen(true); // Open event form
     };
 
     return (
@@ -74,72 +85,17 @@ export default function CommandPalette() {
             {open && (
                 <div className="command-backdrop" onClick={() => setOpen(false)}>
                     <div className="command-wrapper" onClick={(e) => e.stopPropagation()}>
-                        <Command label="Global Command Menu" loop className="command-root">
-                            <div className="flex items-center border-b px-3" cmdk-input-wrapper="">
-                                <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-                                <Command.Input
-                                    value={search}
-                                    onValueChange={setSearch}
-                                    placeholder="Type a command or search..."
-                                    className="flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-neutral-500 disabled:cursor-not-allowed disabled:opacity-50"
-                                />
-                            </div>
+                        <div className="header">
+                            <h3>Voice Command <span className="shortcut-hint">(⌘K)</span></h3>
+                            <button onClick={() => setOpen(false)} className="close-btn">
+                                <X size={20} />
+                            </button>
+                        </div>
 
-                            <Command.List className="max-h-[300px] overflow-y-auto overflow-x-hidden p-2">
-                                <Command.Empty className="py-6 text-center text-sm">
-                                    No results found.
-                                    {search.length > 3 && (
-                                        <button
-                                            onClick={handleSmartAction}
-                                            className="mt-2 text-primary flex items-center justify-center w-full hover:bg-neutral-100 p-2 rounded"
-                                        >
-                                            <Plus size={14} className="mr-1" /> Create "{search}"
-                                        </button>
-                                    )}
-                                </Command.Empty>
-
-                                <Command.Group heading="Smart Actions">
-                                    {search.length > 0 && (
-                                        <Command.Item
-                                            value="create-smart"
-                                            onSelect={handleSmartAction}
-                                            className="command-item"
-                                        >
-                                            <Zap className="mr-2 h-4 w-4" />
-                                            <span>Create "{search}"</span>
-                                            <span className="ml-auto text-xs text-neutral-400">Enter</span>
-                                        </Command.Item>
-                                    )}
-                                </Command.Group>
-
-                                <Command.Group heading="Navigation">
-                                    <Command.Item
-                                        value="calendar"
-                                        onSelect={() => { router.push('/'); setOpen(false); }}
-                                        className="command-item"
-                                    >
-                                        <Calendar className="mr-2 h-4 w-4" />
-                                        <span>Go to Calendar</span>
-                                    </Command.Item>
-                                    <Command.Item
-                                        value="team"
-                                        onSelect={() => { router.push('/team'); setOpen(false); }}
-                                        className="command-item"
-                                    >
-                                        <Users className="mr-2 h-4 w-4" />
-                                        <span>Go to Team</span>
-                                    </Command.Item>
-                                    <Command.Item
-                                        value="settings"
-                                        onSelect={() => { router.push('/settings'); setOpen(false); }}
-                                        className="command-item"
-                                    >
-                                        <Settings className="mr-2 h-4 w-4" />
-                                        <span>Settings</span>
-                                    </Command.Item>
-                                </Command.Group>
-                            </Command.List>
-                        </Command>
+                        <div className="content">
+                            <p className="hint">Try saying: "Lunch with Sarah tomorrow at noon"</p>
+                            <VoiceInput onResult={handleVoiceResult} />
+                        </div>
                     </div>
                 </div>
             )}
@@ -148,68 +104,107 @@ export default function CommandPalette() {
             <Modal
                 isOpen={smartCreateOpen}
                 onClose={() => setSmartCreateOpen(false)}
-                title="Create from Command"
+                title="Create Event"
             >
                 <NewMeetingForm
                     onClose={() => setSmartCreateOpen(false)}
-                    onSuccess={() => window.location.reload()} // Simple reload for now to refresh calendar
-                    initialDate={smartData.date}
-                    initialTime={smartData.time}
+                    onSuccess={(event) => {
+                        if (event) setLastCreatedEvent(event);
+                        setSmartCreateOpen(false);
+                        router.refresh();
+                    }}
+                    initialDate={smartData.date ? smartData.date.toISOString().split('T')[0] : undefined}
+                    initialTime={smartData.date ? smartData.date.toTimeString().slice(0, 5) : undefined}
+                    initialEndTime={smartData.endDate ? smartData.endDate.toTimeString().slice(0, 5) : undefined}
                     initialTitle={smartData.title}
+                    initialDescription={smartData.description}
+                    initialLocation={smartData.location}
+                    initialAttendees={smartData.attendees}
                 />
             </Modal>
 
             <style jsx global>{`
-        .command-backdrop {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 9999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(2px);
-        }
-        
-        .command-wrapper {
-            background: white;
-            border-radius: 12px;
-            width: 100%;
-            max-width: 640px;
-            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
-            overflow: hidden;
-            animation: fadeIn 0.1s ease-out;
-        }
+                .command-backdrop {
+                    position: fixed;
+                    inset: 0;
+                    background: rgba(0,0,0,0.6);
+                    z-index: 9999;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    backdrop-filter: blur(4px);
+                    animation: fadeIn 0.2s ease-out;
+                }
+                
+                .command-wrapper {
+                    background: var(--color-bg-main);
+                    border-radius: 16px;
+                    width: 90%;
+                    max-width: 480px;
+                    box-shadow: var(--shadow-xl);
+                    overflow: hidden;
+                    border: 1px solid var(--color-border);
+                    position: relative;
+                }
 
-        .command-item {
-            display: flex;
-            align-items: center;
-            padding: 8px 12px;
-            font-size: 14px;
-            border-radius: 6px;
-            cursor: pointer;
-            color: var(--color-text-main);
-        }
+                .header {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 16px 20px;
+                    border-bottom: 1px solid var(--color-border);
+                }
 
-        .command-item[data-selected='true'] {
-            background-color: var(--color-bg-secondary);
-            color: var(--color-text-main);
-        }
-        
-        [cmdk-group-heading] {
-            padding: 8px 12px 4px;
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-            color: var(--color-text-secondary);
-            margin-top: 8px;
-        }
+                .header h3 {
+                    font-size: 1.1rem;
+                    font-weight: 600;
+                    color: var(--color-text-main);
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.98); }
-            to { opacity: 1; transform: scale(1); }
-        }
-      `}</style>
+                .shortcut-hint {
+                    font-size: 0.8rem;
+                    color: var(--color-text-secondary);
+                    font-weight: 400;
+                    background: var(--color-bg-secondary);
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    border: 1px solid var(--color-border);
+                }
+
+                .close-btn {
+                    padding: 4px;
+                    border-radius: 50%;
+                    color: var(--color-text-secondary);
+                    transition: all 0.2s;
+                }
+
+                .close-btn:hover {
+                    background: var(--color-bg-secondary);
+                    color: var(--color-text-main);
+                }
+
+                .content {
+                    padding: 20px;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                }
+
+                .hint {
+                    color: var(--color-text-secondary);
+                    margin-bottom: 20px;
+                    font-size: 0.9rem;
+                    font-style: italic;
+                }
+
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: scale(0.98); }
+                    to { opacity: 1; transform: scale(1); }
+                }
+            `}</style>
         </>
     );
 }

@@ -1,28 +1,65 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface NewMeetingFormProps {
     onClose: () => void;
-    onSuccess: () => void;
+    onSuccess: (event?: any) => void;
     initialDate?: string;
     initialTime?: string;
+    initialEndTime?: string;
     initialTitle?: string;
+    initialDescription?: string;
+    initialLocation?: string;
+    initialAttendees?: { id: string, name: string, email: string, image: string | null }[];
 }
 
-export default function NewMeetingForm({ onClose, onSuccess, initialDate, initialTime, initialTitle }: NewMeetingFormProps) {
+export default function NewMeetingForm({ onClose, onSuccess, initialDate, initialTime, initialEndTime, initialTitle, initialDescription, initialLocation, initialAttendees }: NewMeetingFormProps) {
     const [loading, setLoading] = useState(false);
+    const [checkingAvailability, setCheckingAvailability] = useState(true);
+    const [hasAvailability, setHasAvailability] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [formData, setFormData] = useState({
         title: initialTitle || '',
         date: initialDate || new Date().toISOString().split('T')[0],
         startTime: initialTime || '09:00',
-        endTime: initialTime ?
+        endTime: initialEndTime || (initialTime ?
             `${String(Number(initialTime.split(':')[0]) + 1).padStart(2, '0')}:00` :
-            '10:00',
-        description: '',
-        location: 'video'
+            '10:00'),
+        description: initialDescription || '',
+        location: initialLocation || 'video',
+        attendees: initialAttendees || []
     });
+
+    useEffect(() => {
+        const checkUserAvailability = async () => {
+            try {
+                const res = await fetch('/api/user/availability');
+                if (res.ok) {
+                    const data = await res.json();
+                    // Check if there is at least one enabled day
+                    // If data is empty (new user), they have no availability set
+                    const hasActiveDays = data && data.length > 0 && data.some((slot: any) => slot.isEnabled);
+                    setHasAvailability(hasActiveDays);
+                } else {
+                    // If API fails, default to allowing usage to not block existing users due to error
+                    // But for this specific feature request, strict mode might be better. 
+                    // Let's assume strict: if we can't confirm availability, we prompt to check settings.
+                    // However, safe fallback is usually better. Let's start with safe.
+                    // actually, prompt implies new accounts.
+                    setHasAvailability(false);
+                }
+            } catch (err) {
+                console.error('Failed to check availability', err);
+                setHasAvailability(false); // Err on side of caution? Or allow?
+                // Given the prompt "new account... should not be able", I'll set false to force setup.
+            } finally {
+                setCheckingAvailability(false);
+            }
+        };
+
+        checkUserAvailability();
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -42,16 +79,14 @@ export default function NewMeetingForm({ onClose, onSuccess, initialDate, initia
                     description: formData.description,
                     startTime: startDateTime.toISOString(),
                     endTime: endDateTime.toISOString(),
-                    locationType: formData.location.toUpperCase()
+                    locationType: formData.location.toUpperCase(),
+                    attendees: formData.attendees.map(a => a.id) // Assuming API expects IDs
                 }),
             });
 
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.error || 'Failed to create meeting');
-            }
 
-            onSuccess();
+            const createdEvent = await response.json();
+            onSuccess(createdEvent);
             onClose();
         } catch (error: any) {
             console.error(error);
@@ -60,6 +95,43 @@ export default function NewMeetingForm({ onClose, onSuccess, initialDate, initia
             setLoading(false);
         }
     };
+
+    if (checkingAvailability) {
+        return <div className="p-8 text-center text-gray-500">Checking account status...</div>;
+    }
+
+    if (!hasAvailability) {
+        return (
+            <div className="no-availability-state">
+                <div className="icon">📅</div>
+                <h3>Availability Not Set</h3>
+                <p>You need to set your weekly availability before you can schedule meetings.</p>
+
+                <div className="actions">
+                    <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
+                    <a href="/settings" className="btn btn-primary">Go to Settings</a>
+                </div>
+
+                <style jsx>{`
+                    .no-availability-state {
+                        text-align: center;
+                        padding: 20px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 16px;
+                    }
+                    .icon { font-size: 3rem; margin-bottom: 8px; }
+                    h3 { font-size: 1.25rem; font-weight: 600; color: var(--color-text-main); margin: 0; }
+                    p { color: var(--color-text-secondary); max-width: 300px; line-height: 1.5; margin: 0; }
+                    .actions { display: flex; gap: 12px; margin-top: 24px; width: 100%; justify-content: center; }
+                    .btn { padding: 10px 20px; border-radius: 8px; font-weight: 500; text-decoration: none; cursor: pointer; border: none; font-size: 0.95rem; }
+                    .btn-primary { background: var(--color-primary, #4F46E5); color: white; }
+                    .btn-secondary { background: var(--color-bg-secondary); color: var(--color-text-main); }
+                `}</style>
+            </div>
+        );
+    }
 
     return (
         <form

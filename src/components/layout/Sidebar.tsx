@@ -36,6 +36,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         <Link href="/groups" className={`nav-item nav-groups ${isActive('/groups') ? 'active' : ''}`} aria-current={isActive('/groups') ? 'page' : undefined}>
           <span className="text">Groups</span>
         </Link>
+        <Link href="/availability" className={`nav-item nav-availability ${isActive('/availability') ? 'active' : ''}`} aria-current={isActive('/availability') ? 'page' : undefined}>
+          <span className="text">Office Hours</span>
+        </Link>
       </nav>
 
       <div className="sidebar-footer">

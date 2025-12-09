@@ -20,6 +20,8 @@ interface Request {
     createdAt: string;
 }
 
+import { useRouter } from 'next/navigation';
+
 interface RequestCardProps {
     request: Request;
     onRespond: (id: string, type: string, action: 'accept' | 'decline') => Promise<void>;
@@ -27,11 +29,18 @@ interface RequestCardProps {
 
 export default function RequestCard({ request, onRespond }: RequestCardProps) {
     const [status, setStatus] = useState<'idle' | 'accepting' | 'declining'>('idle');
+    const router = useRouter();
 
     const handleAction = async (action: 'accept' | 'decline') => {
         setStatus(action === 'accept' ? 'accepting' : 'declining');
         await onRespond(request.id, request.type, action);
         // Parent will likely remove this card, so status reset might not matter
+    };
+
+    const handleReschedule = () => {
+        // Redirect to calendar with query params to help context (optional)
+        // ideally we pass the original date or ID so the calendar can show "Rescheduling X"
+        router.push(`/?intent=reschedule&requestId=${request.id}`);
     };
 
     return (
@@ -76,6 +85,13 @@ export default function RequestCard({ request, onRespond }: RequestCardProps) {
                     disabled={status !== 'idle'}
                 >
                     {status === 'declining' ? 'Declining...' : 'Decline'}
+                </button>
+                <button
+                    className="btn reschedule"
+                    onClick={handleReschedule}
+                    disabled={status !== 'idle'}
+                >
+                    Reschedule
                 </button>
                 <button
                     className="btn accept"
@@ -176,8 +192,8 @@ export default function RequestCard({ request, onRespond }: RequestCardProps) {
 
                 .card-actions {
                     display: grid;
-                    grid-template-columns: 1fr 1fr;
-                    gap: 12px;
+                    grid-template-columns: 1fr 1fr 1fr;
+                    gap: 8px;
                 }
 
                 .btn {
@@ -187,6 +203,11 @@ export default function RequestCard({ request, onRespond }: RequestCardProps) {
                     cursor: pointer;
                     transition: background 0.2s;
                     border: none;
+                    text-align: center;
+                    font-size: 0.9rem;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                 }
 
                 .decline {
@@ -194,6 +215,13 @@ export default function RequestCard({ request, onRespond }: RequestCardProps) {
                     color: #BE123C;
                 }
                 .decline:hover:not(:disabled) { background: #FFE4E6; }
+
+                .reschedule {
+                    background: var(--color-bg-secondary);
+                    color: var(--color-text-main);
+                    border: 1px solid var(--color-border);
+                }
+                .reschedule:hover:not(:disabled) { background: var(--color-bg-hover); }
 
                 .accept {
                     background: var(--color-accent);

@@ -223,6 +223,20 @@ model BookingPage {
   
   userId      String
   user        User     @relation(fields: [userId], references: [id])
+  
+  availabilitySchedules AvailabilitySchedule[]
+}
+
+model AvailabilitySchedule {
+  id            String      @id @default(cuid())
+  bookingPageId String
+  bookingPage   BookingPage @relation(fields: [bookingPageId], references: [id], onDelete: Cascade)
+  
+  dayOfWeek     Int         // 0=Sun, 1=Mon, etc.
+  startTime     String      // HH:MM
+  endTime       String      // HH:MM
+  
+  @@index([bookingPageId])
 }
 
 model Integration {
