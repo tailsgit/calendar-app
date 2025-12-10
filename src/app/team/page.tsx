@@ -10,6 +10,7 @@ import UserCalendarColumn from '@/components/team/UserCalendarColumn';
 import SmartSuggestionsPanel from '@/components/smart-scheduling/SmartSuggestionsPanel';
 import TeamHeatmap from '@/components/team/TeamHeatmap';
 import UserMonthCalendar from '@/components/team/UserMonthCalendar';
+import CreateTeamEventModal from '@/components/team/CreateTeamEventModal';
 
 interface User {
   id: string;
@@ -44,6 +45,9 @@ function TeamCalendarContent() {
   const [contentView, setContentView] = useState<'calendar' | 'heatmap'>('calendar');
 
   const [rescheduleEvent, setRescheduleEvent] = useState<Event | null>(null);
+  const [isCreateModalOpen, setCreateModalOpen] = useState(false);
+  const [draftStartTime, setDraftStartTime] = useState<Date | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     if (rescheduleId) {
@@ -132,7 +136,41 @@ function TeamCalendarContent() {
     };
 
     fetchEventsForUsers();
-  }, [selectedUsers, currentDate, timeView]);
+  }, [selectedUsers, currentDate, timeView, refreshTrigger]);
+
+  const handleSlotClick = (startTime: Date) => {
+    if (rescheduleId) {
+      handleRescheduleProposal(startTime);
+    } else {
+      setDraftStartTime(startTime);
+      setCreateModalOpen(true);
+    }
+  };
+
+  const handleCreateTeamMeeting = async (title: string, start: Date, end: Date) => {
+    try {
+      const res = await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          description: 'Scheduled via Team Calendar',
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
+          locationType: 'VIDEO',
+          attendees: selectedUsers.map(u => u.id)
+        })
+      });
+
+      if (!res.ok) throw new Error('Failed to create meeting');
+
+      toast.success('Meeting Scheduled!');
+      setRefreshTrigger(v => v + 1);
+    } catch (e) {
+      toast.error('Failed to schedule meeting');
+      console.error(e);
+    }
+  };
 
   const handlePrev = () => {
     if (timeView === 'month') setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
@@ -316,7 +354,7 @@ function TeamCalendarContent() {
                     events={userEvents[user.id] || []}
                     currentDate={currentDate}
                     columnCount={selectedUsers.length}
-                    onSlotClick={rescheduleId ? handleRescheduleProposal : undefined}
+                    onSlotClick={handleSlotClick}
                   />
                 </div>
               ))}
@@ -324,6 +362,14 @@ function TeamCalendarContent() {
           )
         )}
       </div>
+
+      <CreateTeamEventModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onConfirm={handleCreateTeamMeeting}
+        initialDate={draftStartTime}
+        participants={selectedUsers}
+      />
 
       {contentView === 'calendar' && timeView === 'week' && (
         <SmartSuggestionsPanel
