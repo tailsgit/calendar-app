@@ -24,33 +24,50 @@ export default function MeetingRequestForm({
   onClose,
   onSuccess,
 }: MeetingRequestFormProps) {
+  // Initialize start time based on props
+  const initStart = new Date(initialDate);
+  initStart.setHours(initialTime, 0, 0, 0);
+
   const [title, setTitle] = useState('');
-  const [duration, setDuration] = useState(60);
+
+  // State for flexible times
+  const [startTimeStr, setStartTimeStr] = useState(format(initStart, 'HH:mm')); // "15:00"
+  const [endTimeStr, setEndTimeStr] = useState(format(addMinutes(initStart, 60), 'HH:mm')); // "16:00"
+
   const [locationType, setLocationType] = useState('VIDEO');
   const [locationDetails, setLocationDetails] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // Calculate start and end times
-  const startTime = new Date(initialDate);
-  startTime.setHours(initialTime, 0, 0, 0);
-
-  const endTime = addMinutes(startTime, duration);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      // Reconstruct full Date objects
+      const baseDate = format(initialDate, 'yyyy-MM-dd'); // Ensure we stay on same day
+      const startDateTime = new Date(`${baseDate}T${startTimeStr}`);
+      const endDateTime = new Date(`${baseDate}T${endTimeStr}`);
+
+      // Handle overnight? For simplicity, assume same day. 
+      // Validation
+      if (endDateTime <= startDateTime) {
+        toast.error('End time must be after start time');
+        setLoading(false);
+        return;
+      }
+
+      const durationMins = (endDateTime.getTime() - startDateTime.getTime()) / (1000 * 60);
+
       const res = await fetch('/api/meeting-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           recipientId: recipient.id,
           title,
-          startTime: startTime.toISOString(),
-          endTime: endTime.toISOString(),
-          duration,
+          startTime: startDateTime.toISOString(),
+          endTime: endDateTime.toISOString(),
+          duration: durationMins,
           locationType,
           locationDetails: locationType === 'VIDEO' ? 'Zoom (Auto-generated)' : locationDetails,
           message,
@@ -98,26 +115,34 @@ export default function MeetingRequestForm({
           <div className="form-group">
             <label>Date & Time</label>
             <div className="datetime-display">
-              <div className="date">📅 {format(startTime, 'EEEE, MMM d')}</div>
-              <div className="time">⏰ {format(startTime, 'h:mm a')} - {format(endTime, 'h:mm a')}</div>
+              <div className="date-row">
+                {format(initialDate, 'EEEE, MMM d, yyyy')}
+              </div>
+              <div className="time-row">
+                <div className="time-input-group">
+                  <label>Start</label>
+                  <input
+                    type="time"
+                    value={startTimeStr}
+                    onChange={(e) => setStartTimeStr(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="separator">→</div>
+                <div className="time-input-group">
+                  <label>End</label>
+                  <input
+                    type="time"
+                    value={endTimeStr}
+                    onChange={(e) => setEndTimeStr(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="form-group">
-            <label>Duration</label>
-            <div className="duration-options">
-              {[15, 30, 60].map(mins => (
-                <button
-                  key={mins}
-                  type="button"
-                  className={`duration-btn ${duration === mins ? 'active' : ''}`}
-                  onClick={() => setDuration(mins)}
-                >
-                  {mins} min
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* Duration pills removed in favor of flexible end time */}
 
           <div className="form-group">
             <label>Meeting Title <span className="required">*</span></label>
@@ -294,39 +319,68 @@ export default function MeetingRequestForm({
         }
 
         .datetime-display {
-          padding: var(--spacing-md);
-          border: 1px solid var(--color-border);
-          border-radius: var(--radius-md);
-          background: var(--color-bg-secondary);
-        }
-
-        .duration-options {
           display: flex;
+          flex-direction: column;
           gap: var(--spacing-sm);
         }
 
-        .duration-btn {
-          flex: 1;
-          padding: 0.5rem;
-          border: 1px solid var(--color-border);
-          border-radius: var(--radius-md);
-          background: var(--color-bg-main);
-          color: var(--color-text-main);
-          transition: all var(--transition-fast);
+        .date-row {
+          font-weight: 500;
+          color: var(--color-text-secondary);
+          font-size: 0.9rem;
         }
 
-        .duration-btn.active {
-          background: var(--color-accent);
-          color: white;
-          border-color: var(--color-accent);
+        .time-row {
+          display: flex;
+          align-items: center;
+          gap: var(--spacing-md);
         }
+
+        .time-input-group {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          flex: 1;
+        }
+
+        .time-input-group label {
+          font-size: 0.75rem;
+          color: var(--color-text-tertiary);
+          margin: 0;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .time-input-group input[type="time"] {
+          font-size: 1.1rem;
+          padding: 8px 12px;
+          font-weight: 500;
+          border-color: var(--color-border);
+          background: var(--color-bg-main);
+          width: 100%;
+          border-radius: var(--radius-md);
+          cursor: pointer;
+        }
+
+        .time-input-group input[type="time"]:focus {
+          border-color: var(--color-accent);
+          box-shadow: 0 0 0 2px var(--color-accent-transparent);
+        }
+
+        .separator {
+          color: var(--color-text-tertiary);
+          font-weight: 500;
+          margin-top: 18px; /* Visual alignment with inputs */
+        }
+
+        /* Removed duration-btn styles */
 
         input[type="text"], textarea {
           width: 100%;
           padding: 0.75rem;
           border: 1px solid var(--color-border);
           border-radius: var(--radius-md);
-          background: var(--color-bg-main);
+          background: var(--color-bg-secondary); /* Matches previous style or global input style */
           color: var(--color-text-main);
           font-size: 1rem;
         }

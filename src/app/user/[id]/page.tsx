@@ -42,6 +42,7 @@ export default function UserProfilePage() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [busySlots, setBusySlots] = useState<BusySlot[]>([]);
   const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
+  const [isTeamMember, setIsTeamMember] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showRequestForm, setShowRequestForm] = useState(false);
@@ -64,6 +65,7 @@ export default function UserProfilePage() {
         setUser(data.user);
         setBusySlots(data.busySlots || []);
         setAvailability(data.availability || []);
+        setIsTeamMember(data.isTeamMember || false);
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
@@ -72,28 +74,37 @@ export default function UserProfilePage() {
   };
 
   const isSlotBusy = (day: Date, hour: number) => {
-    // Check availability first
-    const dayOfWeek = day.getDay(); // 0 = Sunday
-    const dayConfig = availability.find(a => a.dayOfWeek === dayOfWeek);
+    // 1. Availability Rules (Skip if Team Member)
+    // Team members see ALL slots unless actually busy with an event
+    if (!isTeamMember) {
+      const dayOfWeek = day.getDay(); // 0 = Sunday
+      const dayConfig = availability.find(a => a.dayOfWeek === dayOfWeek);
 
-    if (!dayConfig || !dayConfig.isEnabled) return 'unavailable';
+      if (!dayConfig || !dayConfig.isEnabled) return 'unavailable';
 
-    const slotTime = hour * 60; // minutes from midnight
-    const [startHour, startMin] = dayConfig.startTime.split(':').map(Number);
-    const [endHour, endMin] = dayConfig.endTime.split(':').map(Number);
-    const startTime = startHour * 60 + startMin;
-    const endTime = endHour * 60 + endMin;
+      const slotTime = hour * 60; // minutes from midnight
+      const [startHour, startMin] = dayConfig.startTime.split(':').map(Number);
+      const [endHour, endMin] = dayConfig.endTime.split(':').map(Number);
+      const startTime = startHour * 60 + startMin;
+      const endTime = endHour * 60 + endMin;
 
-    if (slotTime < startTime || slotTime >= endTime) return 'unavailable';
+      if (slotTime < startTime || slotTime >= endTime) return 'unavailable';
+    }
 
-    // Check events
+    // 2. Actual Calendar Events
     const isBusy = busySlots.some(slot => {
       const slotStart = new Date(slot.startTime);
       const slotEnd = new Date(slot.endTime);
       const slotHour = new Date(day);
       slotHour.setHours(hour, 0, 0, 0);
 
-      return slotStart <= slotHour && slotEnd > slotHour;
+      // Simple overlap check for the hour slot
+      // Slot: 14:00 - 15:00
+      // Event: 14:30 - 15:00 -> Busy
+      const slotHourEnd = new Date(slotHour);
+      slotHourEnd.setHours(hour + 1);
+
+      return slotStart < slotHourEnd && slotEnd > slotHour;
     });
 
     return isBusy ? 'busy' : 'free';

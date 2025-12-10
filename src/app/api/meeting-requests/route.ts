@@ -49,8 +49,24 @@ export async function POST(request: NextRequest) {
         const requestEnd = new Date(endTime);
         const timeZone = recipient.timeZone || 'UTC';
 
+        // 1. Check for Sender Conflicts (User's own schedule)
+        const senderConflicts = await prisma.event.findFirst({
+            where: {
+                ownerId: session.user.id,
+                AND: [
+                    { startTime: { lt: requestEnd } },
+                    { endTime: { gt: requestStart } }
+                ],
+                status: { not: 'CANCELLED' }
+            }
+        });
+
+        if (senderConflicts) {
+            // Precise message requested by user
+            return NextResponse.json({ error: 'Not able to fit in your own schedule' }, { status: 400 });
+        }
+
         // Get day of week and time in recipient's timezone
-        // Safer way to get day index in specific timezone
         const dateInTz = new Date(requestStart.toLocaleString('en-US', { timeZone }));
         const dayIndex = dateInTz.getDay();
 
@@ -68,9 +84,17 @@ export async function POST(request: NextRequest) {
         const availStartMinutes = availStartHour * 60 + availStartMin;
         const availEndMinutes = availEndHour * 60 + availEndMin;
 
+        // Validation Helper for 12h format
+        const to12Hour = (timeStr: string) => {
+            const [h, m] = timeStr.split(':').map(Number);
+            const period = h >= 12 ? 'PM' : 'AM';
+            const hours = h % 12 || 12; // 0 becomes 12
+            return `${hours}:${m.toString().padStart(2, '0')} ${period}`;
+        };
+
         if (startMinutes < availStartMinutes || endMinutes > availEndMinutes) {
             return NextResponse.json({
-                error: `Recipient is only available between ${dayConfig.startTime} and ${dayConfig.endTime}`
+                error: `Recipient is only available between ${to12Hour(dayConfig.startTime)} and ${to12Hour(dayConfig.endTime)}`
             }, { status: 400 });
         }
 

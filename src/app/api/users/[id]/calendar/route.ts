@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
-import { startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
+import { startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, startOfDay } from 'date-fns';
 
 // GET - Fetch user's profile and busy slots
 export async function GET(
@@ -11,9 +11,15 @@ export async function GET(
     try {
         const session = await auth();
         const { id } = await params;
+        const targetUserId = id;
 
         if (!session?.user?.id) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        // Basic validation
+        if (!targetUserId) {
+            return NextResponse.json({ error: 'User ID required' }, { status: 400 });
         }
 
         // Get date range from query params or default to current week
@@ -22,11 +28,11 @@ export async function GET(
         const baseDate = dateParam ? new Date(dateParam) : new Date();
 
         const startDate = startOfWeek(baseDate, { weekStartsOn: 1 }); // Monday
-        const endDate = endOfWeek(baseDate, { weekStartsOn: 1 });
+        const endDate = addDays(startDate, 7); // Changed from endOfWeek to addDays(startDate, 7)
 
         // Fetch user profile
         const user = await prisma.user.findUnique({
-            where: { id },
+            where: { id: targetUserId },
             select: {
                 id: true,
                 name: true,
@@ -43,26 +49,65 @@ export async function GET(
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
+        // Check if they are in the same group (Team Member)
+        // Relaxed Check: If either leads a group the other is in, or both are members of same group
+        const sharedGroup = await prisma.groupMember.findFirst({
+            where: {
+                userId: session.user.id,
+                status: 'approved',
+                group: {
+                    members: {
+                        some: {
+                            userId: targetUserId,
+                            status: 'approved'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Also check leadership: if I lead a group they are in, or they lead a group I am in
+        const leadership = await prisma.group.findFirst({
+            where: {
+                OR: [
+                    { leaderId: session.user.id, members: { some: { userId: targetUserId, status: 'approved' } } },
+                    { leaderId: targetUserId, members: { some: { userId: session.user.id, status: 'approved' } } }
+                ]
+            }
+        });
+
+        const isTeamMember = !!(sharedGroup || leadership);
+
         // Fetch confirmed events (busy slots)
+        // We fetch their events to show actual busy times
         const events = await prisma.event.findMany({
             where: {
-                ownerId: id,
+                ownerId: targetUserId,
                 startTime: { gte: startDate },
                 endTime: { lte: endDate },
-                status: 'SCHEDULED',
+                status: { not: 'CANCELLED' }
             },
-            select: {
-                id: true,
-                startTime: true,
-                endTime: true,
-                status: true,
+            select: { id: true, startTime: true, endTime: true, status: true }
+        });
+
+        // Also fetch participation in other events
+        const participations = await prisma.participant.findMany({
+            where: {
+                userId: targetUserId,
+                status: { in: ['ACCEPTED', 'PENDING'] },
+                event: {
+                    startTime: { gte: startDate },
+                    endTime: { lte: endDate },
+                    status: { not: 'CANCELLED' }
+                }
             },
+            include: { event: { select: { id: true, startTime: true, endTime: true, status: true } } }
         });
 
         // Fetch pending meeting requests (also busy/tentative)
         const pendingRequests = await prisma.meetingRequest.findMany({
             where: {
-                recipientId: id,
+                recipientId: targetUserId,
                 startTime: { gte: startDate },
                 endTime: { lte: endDate },
                 status: 'PENDING',
@@ -78,16 +123,17 @@ export async function GET(
         // Combine into busy slots
         const busySlots = [
             ...events.map(e => ({ ...e, type: 'event' })),
+            ...participations.map(p => ({ ...p.event, type: 'event' })),
             ...pendingRequests.map(r => ({ ...r, type: 'request' })),
         ];
 
         // Fetch availability
         const availability = await prisma.availability.findMany({
-            where: { userId: id },
+            where: { userId: targetUserId },
             orderBy: { dayOfWeek: 'asc' },
         });
 
-        return NextResponse.json({ user, busySlots, availability, weekStart: startDate, weekEnd: endDate });
+        return NextResponse.json({ user, busySlots, availability, weekStart: startDate, weekEnd: endDate, isTeamMember });
     } catch (error) {
         console.error('Error fetching user calendar:', error);
         return NextResponse.json({ error: 'Failed to fetch calendar' }, { status: 500 });
