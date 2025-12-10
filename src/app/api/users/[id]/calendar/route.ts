@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, startOfDay } from 'date-fns';
+import { getGoogleCalendarEvents } from '@/lib/google';
+import { getOutlookCalendarEvents } from '@/lib/outlook';
 
 // GET - Fetch user's profile and busy slots
 export async function GET(
@@ -120,11 +122,28 @@ export async function GET(
             },
         });
 
+        // --- FETCH EXTERNAL EVENTS (Google / Outlook) ---
+        // Fetch in parallel. These functions handle token lookup and return [] if no connection.
+        const [googleEvents, outlookEvents] = await Promise.all([
+            getGoogleCalendarEvents(targetUserId, startDate, endDate),
+            getOutlookCalendarEvents(targetUserId, startDate, endDate)
+        ]);
+
+        const externalBusySlots = [...googleEvents, ...outlookEvents].map(e => ({
+            id: e.id,
+            startTime: e.start,
+            endTime: e.end,
+            status: 'BUSY',
+            title: 'Busy', // Mask title for now, or use e.title if team member logic expands
+            type: 'external_event'
+        }));
+
         // Combine into busy slots
         const busySlots = [
             ...events.map(e => ({ ...e, type: 'event' })),
             ...participations.map(p => ({ ...p.event, type: 'event' })),
             ...pendingRequests.map(r => ({ ...r, type: 'request' })),
+            ...externalBusySlots
         ];
 
         // Fetch availability
