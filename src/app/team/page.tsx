@@ -38,8 +38,9 @@ function TeamCalendarContent() {
   const [userEvents, setUserEvents] = useState<Record<string, Event[]>>({});
   const [currentDate, setCurrentDate] = useState(new Date());
 
-  // 'calendar' implies Week (default columns). 'month' is new. 'heatmap' exists.
-  const [viewMode, setViewMode] = useState<'week' | 'month' | 'heatmap'>('week');
+  // State Split: 'timeView' (Scope) vs 'contentView' (Visualization)
+  const [timeView, setTimeView] = useState<'week' | 'month'>('week');
+  const [contentView, setContentView] = useState<'calendar' | 'heatmap'>('calendar');
 
   const [rescheduleEvent, setRescheduleEvent] = useState<Event | null>(null);
 
@@ -102,7 +103,7 @@ function TeamCalendarContent() {
       const newEventsMap = { ...userEvents }; // Keep existing (maybe cache?) or clear? Let's keep and overwrite.
 
       let start, end;
-      if (viewMode === 'month') {
+      if (timeView === 'month') {
         const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
         start = startOfWeek(monthStart, { weekStartsOn: 1 });
         const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
@@ -130,14 +131,14 @@ function TeamCalendarContent() {
     };
 
     fetchEventsForUsers();
-  }, [selectedUsers, currentDate, viewMode]);
+  }, [selectedUsers, currentDate, timeView]);
 
   const handlePrev = () => {
-    if (viewMode === 'month') setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+    if (timeView === 'month') setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
     else setCurrentDate(subWeeks(currentDate, 1));
   };
   const handleNext = () => {
-    if (viewMode === 'month') setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+    if (timeView === 'month') setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1));
     else setCurrentDate(addWeeks(currentDate, 1));
   };
   const handleToday = () => setCurrentDate(new Date());
@@ -249,25 +250,32 @@ function TeamCalendarContent() {
           </div>
 
           <span className="current-date-label">
-            {viewMode === 'week' ? format(startOfWeek(currentDate, { weekStartsOn: 1 }), 'MMMM yyyy') : format(currentDate, 'MMMM yyyy')}
+            {timeView === 'week' ? format(startOfWeek(currentDate, { weekStartsOn: 1 }), 'MMMM yyyy') : format(currentDate, 'MMMM yyyy')}
           </span>
 
           <div className="view-toggles-group">
             <button
-              onClick={() => setViewMode('week')}
-              className={`toggle-btn ${viewMode === 'week' ? 'active' : ''}`}
+              onClick={() => setTimeView('week')}
+              className={`toggle-btn ${timeView === 'week' ? 'active' : ''}`}
             >
               Week
             </button>
             <button
-              onClick={() => setViewMode('month')}
-              className={`toggle-btn ${viewMode === 'month' ? 'active' : ''}`}
+              onClick={() => setTimeView('month')}
+              className={`toggle-btn ${timeView === 'month' ? 'active' : ''}`}
             >
               Month
             </button>
+            <div className="vertical-divider"></div>
             <button
-              onClick={() => setViewMode('heatmap')}
-              className={`toggle-btn ${viewMode === 'heatmap' ? 'active' : ''}`}
+              onClick={() => setContentView('calendar')}
+              className={`toggle-btn ${contentView === 'calendar' ? 'active' : ''}`}
+            >
+              Calendar
+            </button>
+            <button
+              onClick={() => setContentView('heatmap')}
+              className={`toggle-btn ${contentView === 'heatmap' ? 'active' : ''}`}
             >
               Heatmap
             </button>
@@ -283,12 +291,14 @@ function TeamCalendarContent() {
             <p>Search for coworkers above to view their calendars side-by-side.</p>
           </div>
         ) : (
-          viewMode === 'heatmap' ? (
+          contentView === 'heatmap' ? (
             <div className="p-6 h-full overflow-y-auto">
-              <TeamHeatmap selectedUsers={selectedUsers} currentDate={currentDate} />
+              {/* Pass timeView prop to support Month Heatmap */}
+              <TeamHeatmap selectedUsers={selectedUsers} currentDate={currentDate} timeView={timeView} />
             </div>
-          ) : viewMode === 'month' ? (
+          ) : timeView === 'month' ? (
             <div className="month-grid-container p-4 overflow-y-auto h-full">
+              {/* ... Month View Implementation ... */}
               <div className="month-grid">
                 {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
                   <div key={d} className="month-header-cell">{d}</div>
@@ -308,7 +318,7 @@ function TeamCalendarContent() {
                     });
                   });
 
-                  // Sort by time?
+                  // Sort by time
                   dayEvents.sort((a, b) => new Date(a.event.startTime).getTime() - new Date(b.event.startTime).getTime());
 
                   return (
@@ -316,8 +326,7 @@ function TeamCalendarContent() {
                       <div className="month-date-label">{format(date, 'd')}</div>
                       <div className="month-cell-content">
                         {dayEvents.slice(0, 4).map(({ event, user }, i) => (
-                          <div key={i} className="month-team-event" title={`${user.name}: ${event.title}`}>
-                            <div className="user-dot" style={{ background: event.color || '#666' }}></div>
+                          <div key={i} className="month-team-event" title={`${user.name}: ${event.title}`} style={{ borderLeft: `3px solid ${event.color || '#666'}` }}>
                             <span className="event-time">{format(new Date(event.startTime), 'HH:mm')}</span>
                             <span className="event-title">{event.title}</span>
                           </div>
@@ -331,6 +340,7 @@ function TeamCalendarContent() {
             </div>
           ) : (
             <div className="columns-container">
+              {/* Week View Implementation */}
               {selectedUsers.map(user => (
                 <div
                   key={user.id}
@@ -351,7 +361,7 @@ function TeamCalendarContent() {
         )}
       </div>
 
-      {viewMode === 'week' && (
+      {contentView === 'calendar' && timeView === 'week' && (
         <SmartSuggestionsPanel
           selectedUsers={selectedUsers}
           userEvents={userEvents}
@@ -459,10 +469,20 @@ function TeamCalendarContent() {
                     display: flex; align-items: center; gap: 4px;
                     white-space: nowrap; overflow: hidden;
                 }
-                .user-dot { width: 6px; height: 6px; border-radius: 50%; shrink: 0; }
-                .event-time { color: var(--color-text-tertiary); }
-                .event-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
-                .more-events { font-size: 0.7rem; color: var(--color-text-tertiary); padding-left: 4px; }
+                .vertical-divider {
+                    width: 1px;
+                    height: 24px;
+                    background: var(--color-border);
+                    margin: 0 4px;
+                }
+                .month-team-event {
+                    font-size: 0.75rem;
+                    background: transparent;
+                    padding: 1px 4px;
+                    display: flex; align-items: center; gap: 4px;
+                    white-space: nowrap; overflow: hidden;
+                    color: var(--color-text-main);
+                }
 
                 /* Header Controls Styling */
                 .header-controls {
