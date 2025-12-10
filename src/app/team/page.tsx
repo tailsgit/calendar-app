@@ -147,17 +147,17 @@ function TeamCalendarContent() {
     }
   };
 
-  const handleCreateTeamMeeting = async (title: string, start: Date, end: Date) => {
+  const handleCreateTeamMeeting = async (title: string, start: Date, end: Date, locationType: string, description: string) => {
     try {
       const res = await fetch('/api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title,
-          description: 'Scheduled via Team Calendar',
+          description: description || '',
           startTime: start.toISOString(),
           endTime: end.toISOString(),
-          locationType: 'VIDEO',
+          locationType: locationType || 'VIDEO',
           attendees: selectedUsers.map(u => u.id)
         })
       });

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { X, Clock, Users } from 'lucide-react';
+import { X, Users } from 'lucide-react';
 
 interface User {
     id: string;
@@ -13,7 +13,7 @@ interface User {
 interface CreateTeamEventModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (title: string, startTime: Date, endTime: Date) => Promise<void>;
+    onConfirm: (title: string, startTime: Date, endTime: Date, locationType: string, description: string) => Promise<void>;
     initialDate: Date | null;
     participants: User[];
 }
@@ -22,6 +22,8 @@ export default function CreateTeamEventModal({ isOpen, onClose, onConfirm, initi
     const [title, setTitle] = useState('');
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
+    const [locationType, setLocationType] = useState('VIDEO');
+    const [description, setDescription] = useState('');
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
@@ -29,6 +31,16 @@ export default function CreateTeamEventModal({ isOpen, onClose, onConfirm, initi
             // Default 1 hour duration
             setStartTime(format(initialDate, "yyyy-MM-dd'T'HH:mm"));
             const end = new Date(initialDate.getTime() + 60 * 60 * 1000);
+            setEndTime(format(end, "yyyy-MM-dd'T'HH:mm"));
+            setTitle('Team Sync');
+            setDescription('');
+            setLocationType('VIDEO');
+        } else if (isOpen) {
+            // Fallback if no initialDate
+            const now = new Date();
+            now.setMinutes(0, 0, 0); // Round to hour
+            setStartTime(format(now, "yyyy-MM-dd'T'HH:mm"));
+            const end = new Date(now.getTime() + 60 * 60 * 1000);
             setEndTime(format(end, "yyyy-MM-dd'T'HH:mm"));
             setTitle('Team Sync');
         }
@@ -40,7 +52,7 @@ export default function CreateTeamEventModal({ isOpen, onClose, onConfirm, initi
         e.preventDefault();
         setLoading(true);
         try {
-            await onConfirm(title, new Date(startTime), new Date(endTime));
+            await onConfirm(title, new Date(startTime), new Date(endTime), locationType, description);
             onClose();
         } catch (error) {
             console.error(error);
@@ -65,7 +77,8 @@ export default function CreateTeamEventModal({ isOpen, onClose, onConfirm, initi
                             value={title}
                             onChange={e => setTitle(e.target.value)}
                             required
-                            placeholder="e.g. Sync"
+                            placeholder="e.g. Team Sync"
+                            autoFocus
                         />
                     </div>
 
@@ -88,6 +101,28 @@ export default function CreateTeamEventModal({ isOpen, onClose, onConfirm, initi
                                 required
                             />
                         </div>
+                    </div>
+
+                    <div className="form-group">
+                        <label>Location</label>
+                        <select
+                            value={locationType}
+                            onChange={e => setLocationType(e.target.value)}
+                        >
+                            <option value="VIDEO">📹 Video Call</option>
+                            <option value="PHONE">📞 Phone Call</option>
+                            <option value="IN_PERSON">📍 In Person</option>
+                        </select>
+                    </div>
+
+                    <div className="form-group">
+                        <label>Description</label>
+                        <textarea
+                            value={description}
+                            onChange={e => setDescription(e.target.value)}
+                            placeholder="Add agenda or notes..."
+                            rows={3}
+                        />
                     </div>
 
                     <div className="participants-preview">
@@ -121,39 +156,61 @@ export default function CreateTeamEventModal({ isOpen, onClose, onConfirm, initi
                         background: rgba(0,0,0,0.5);
                         display: flex; align-items: center; justify-content: center;
                         z-index: 100;
+                        animation: fadeIn 0.2s ease;
                     }
+
+                    @keyframes fadeIn {
+                        from { opacity: 0; }
+                        to { opacity: 1; }
+                    }
+
                     .modal-content {
                         background: var(--color-bg-main);
-                        border-radius: 12px;
-                        width: 100%; max-width: 450px;
+                        border-radius: var(--radius-lg);
+                        width: 100%; max-width: 500px;
                         box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
                         overflow: hidden;
+                        animation: slideUp 0.2s ease;
                     }
+
+                    @keyframes slideUp {
+                        from { transform: translateY(20px); opacity: 0; }
+                        to { transform: translateY(0); opacity: 1; }
+                    }
+
                     .modal-header {
-                        padding: 16px 20px;
+                        padding: var(--spacing-lg);
                         border-bottom: 1px solid var(--color-border);
                         display: flex; justify-content: space-between; align-items: center;
                     }
-                    .modal-header h2 { font-size: 1.1rem; font-weight: 600; margin: 0; }
-                    .close-btn { background: none; border: none; cursor: pointer; color: var(--color-text-secondary); }
+                    .modal-header h2 { font-size: 1.25rem; font-weight: 600; margin: 0; }
+                    .close-btn { background: none; border: none; cursor: pointer; color: var(--color-text-secondary); padding: 4px; border-radius: 4px; }
+                    .close-btn:hover { background-color: var(--color-bg-secondary); }
                     
-                    .modal-body { padding: 20px; }
-                    .form-group { margin-bottom: 16px; }
+                    .modal-body { padding: var(--spacing-lg); }
+                    .form-group { margin-bottom: var(--spacing-md); }
                     .form-group label { display: block; margin-bottom: 6px; font-size: 0.9rem; color: var(--color-text-secondary); font-weight: 500; }
-                    .form-group input {
+                    
+                    .form-group input,
+                    .form-group select,
+                    .form-group textarea {
                         width: 100%; padding: 8px 12px;
                         border: 1px solid var(--color-border);
-                        border-radius: 6px;
+                        border-radius: var(--radius-md);
                         font-size: 0.95rem;
+                        font-family: inherit;
+                        background: var(--color-bg-main);
+                        color: var(--color-text-main);
                     }
-                    .form-row { display: flex; gap: 12px; }
-                    .form-row .form-group { flex: 1; }
+
+                    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-md); }
 
                     .participants-preview {
                         background: var(--color-bg-secondary);
                         padding: 12px;
-                        border-radius: 8px;
+                        border-radius: var(--radius-md);
                         margin-bottom: 20px;
+                        border: 1px solid var(--color-border);
                     }
                     .participants-list { display: flex; flex-wrap: wrap; gap: 8px; }
                     .participant-chip {
@@ -174,6 +231,9 @@ export default function CreateTeamEventModal({ isOpen, onClose, onConfirm, initi
 
                     .modal-footer {
                         display: flex; justify-content: flex-end; gap: 10px;
+                        margin-top: var(--spacing-lg);
+                        padding-top: var(--spacing-lg);
+                        border-top: 1px solid var(--color-border);
                     }
                     .btn-primary {
                         background: var(--color-accent); color: white;
