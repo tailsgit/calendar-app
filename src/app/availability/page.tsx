@@ -742,11 +742,12 @@ export default function AvailabilityPage() {
             border-radius: 4px;
             padding: 2px 4px;
             font-size: 0.7rem;
-            color: white;
+            color: var(--color-text-main); /* Change from white to main text color for contrast on light bg */
             z-index: 5;
-            opacity: 0.4;
+            opacity: 0.6; /* Increased brightness slightly */
             pointer-events: none;
             overflow: hidden;
+            font-weight: 500;
         }
         
         .popover-backdrop {
