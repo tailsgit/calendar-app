@@ -265,9 +265,23 @@ export default function UserProfilePage() {
             });
 
             // Viewer Events (for ghosts)
-            const dayViewerEvents = viewerBusySlots.filter(slot => {
-              const s = new Date(slot.startTime);
-              return s.getDate() === day.getDate() && s.getMonth() === day.getMonth();
+            // ONLY render ghosts if they do NOT overlap with a host event (Scenario B)
+            // If they DO overlap (Scenario A), the Host Event gets a badge, and we hide the ghost to prevent mess.
+            const dayViewerEvents = viewerBusySlots.filter(vSlot => {
+              const vStart = new Date(vSlot.startTime);
+              const vEnd = new Date(vSlot.endTime);
+
+              // 1. Must be same day
+              if (vStart.getDate() !== day.getDate() || vStart.getMonth() !== day.getMonth()) return false;
+
+              // 2. Must NOT overlap with any Host event
+              const isOverlapping = dayEvents.some(hSlot => {
+                const hStart = new Date(hSlot.startTime);
+                const hEnd = new Date(hSlot.endTime);
+                return vStart < hEnd && vEnd > hStart;
+              });
+
+              return !isOverlapping;
             });
 
             return (
