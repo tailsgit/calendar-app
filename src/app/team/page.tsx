@@ -234,39 +234,40 @@ function TeamCalendarContent() {
           onRemoveUser={handleRemoveUser}
         />
 
-        <div className="flex flex-row items-center ml-4 gap-4">
+        <div className="header-controls">
           {/* Date Nav */}
-          <div className="date-nav flex items-center bg-white rounded-md border border-neutral-200 p-1">
-            <button onClick={handlePrev} className="p-1 hover:bg-neutral-100 rounded text-neutral-600">
+          <div className="date-nav-group">
+            <button onClick={handlePrev} className="nav-icon-btn">
               <ChevronLeft size={20} />
             </button>
-            <button onClick={handleToday} className="px-3 py-1 text-sm font-medium hover:bg-neutral-100 rounded text-neutral-700">
+            <button onClick={handleToday} className="nav-today-btn">
               Today
             </button>
-            <button onClick={handleNext} className="p-1 hover:bg-neutral-100 rounded text-neutral-600">
+            <button onClick={handleNext} className="nav-icon-btn">
               <ChevronRight size={20} />
             </button>
           </div>
-          <span className="text-lg font-medium text-neutral-700 min-w-[140px]">
+
+          <span className="current-date-label">
             {viewMode === 'week' ? format(startOfWeek(currentDate, { weekStartsOn: 1 }), 'MMMM yyyy') : format(currentDate, 'MMMM yyyy')}
           </span>
 
-          <div className="view-toggles flex bg-neutral-100 p-1 rounded-md border border-neutral-200">
+          <div className="view-toggles-group">
             <button
               onClick={() => setViewMode('week')}
-              className={`px-3 py-1 text-sm font-medium rounded ${viewMode === 'week' ? 'bg-white shadow-sm text-neutral-900' : 'text-neutral-500 hover:text-neutral-700'}`}
+              className={`toggle-btn ${viewMode === 'week' ? 'active' : ''}`}
             >
               Week
             </button>
             <button
               onClick={() => setViewMode('month')}
-              className={`px-3 py-1 text-sm font-medium rounded ${viewMode === 'month' ? 'bg-white shadow-sm text-neutral-900' : 'text-neutral-500 hover:text-neutral-700'}`}
+              className={`toggle-btn ${viewMode === 'month' ? 'active' : ''}`}
             >
               Month
             </button>
             <button
               onClick={() => setViewMode('heatmap')}
-              className={`px-3 py-1 text-sm font-medium rounded ${viewMode === 'heatmap' ? 'bg-white shadow-sm text-neutral-900' : 'text-neutral-500 hover:text-neutral-700'}`}
+              className={`toggle-btn ${viewMode === 'heatmap' ? 'active' : ''}`}
             >
               Heatmap
             </button>
@@ -462,6 +463,78 @@ function TeamCalendarContent() {
                 .event-time { color: var(--color-text-tertiary); }
                 .event-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
                 .more-events { font-size: 0.7rem; color: var(--color-text-tertiary); padding-left: 4px; }
+
+                /* Header Controls Styling */
+                .header-controls {
+                    display: flex;
+                    align-items: center;
+                    gap: 1.5rem;
+                    margin-left: 1rem;
+                }
+
+                .date-nav-group {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    background: var(--color-bg-main);
+                    border: 1px solid var(--color-border);
+                    border-radius: var(--radius-md);
+                    padding: 4px;
+                }
+
+                .nav-icon-btn, .nav-today-btn {
+                    background: transparent;
+                    border: none;
+                    color: var(--color-text-secondary);
+                    cursor: pointer;
+                    display: flex; align-items: center; justify-content: center;
+                    border-radius: 4px;
+                    transition: all 0.2s;
+                }
+                .nav-icon-btn { padding: 4px; }
+                .nav-today-btn { padding: 4px 12px; font-weight: 600; font-size: 0.9rem; }
+                
+                .nav-icon-btn:hover, .nav-today-btn:hover {
+                    background: var(--color-bg-secondary);
+                    color: var(--color-text-main);
+                }
+
+                .current-date-label {
+                    font-size: 1.1rem;
+                    font-weight: 600;
+                    color: var(--color-text-main);
+                    min-width: 150px;
+                }
+
+                .view-toggles-group {
+                    display: flex;
+                    gap: 8px;
+                }
+
+                .toggle-btn {
+                    padding: 6px 16px;
+                    font-size: 0.9rem;
+                    font-weight: 500;
+                    border-radius: var(--radius-md);
+                    border: 1px solid var(--color-border);
+                    background: var(--color-bg-main);
+                    color: var(--color-text-secondary);
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+
+                .toggle-btn:hover {
+                    border-color: var(--color-text-secondary);
+                    color: var(--color-text-main);
+                }
+
+                .toggle-btn.active {
+                    border-color: var(--color-accent);
+                    color: var(--color-accent);
+                    background: var(--color-bg-highlight); /* Subtle tint */
+                    font-weight: 600;
+                    box-shadow: 0 0 0 1px var(--color-accent);
+                }
             `}</style>
     </div>
   );
