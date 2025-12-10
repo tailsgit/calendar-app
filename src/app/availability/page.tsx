@@ -249,19 +249,21 @@ export default function AvailabilityPage() {
   return (
     <div className="availability-page container">
       <div className="header">
-        <div className="header-top">
+        <div className="header-left">
           <h1>Booking</h1>
-          <button className="btn btn-secondary" onClick={handleCopyLink} title="Generate Booking Link">
+          <p className="link-description">
+            Share this link to let others book time with you. They can sign in and schedule meetings during your available slots.
+          </p>
+          <div className="help-text-container">
+            <p className="grid-help">
+              <strong>How to use:</strong> Click on the empty grid to add a slot. Click an existing slot to edit or remove it.
+            </p>
+          </div>
+        </div>
+        <div className="header-right">
+          <button className="btn btn-secondary copy-btn" onClick={handleCopyLink} title="Generate Booking Link">
             <LinkIcon size={16} className="mr-2" /> Copy Link
           </button>
-        </div>
-        <p className="link-description">
-          Share this link to let others book time with you. They can sign in and schedule meetings during your available slots.
-        </p>
-        <div className="help-text-container">
-          <p className="grid-help">
-            <strong>How to use:</strong> Click on the empty grid to add a slot. Click an existing slot to edit or remove it.
-          </p>
         </div>
       </div>
 
@@ -414,21 +416,28 @@ export default function AvailabilityPage() {
         }
         
         .header { 
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
             margin-bottom: 2rem; 
             padding-bottom: 2rem;
             border-bottom: 1px solid var(--color-border);
         }
 
-        .header-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
+        .header-left {
+            flex: 1;
+            padding-right: 2rem;
+        }
+
+        .header-right {
+            flex-shrink: 0;
+            padding-top: 0.5rem;
         }
         
         .header h1 {
             font-size: 1.8rem;
             font-weight: 700;
+            margin-bottom: 0.5rem;
         }
 
         .link-description {
