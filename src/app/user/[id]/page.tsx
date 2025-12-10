@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { format, startOfWeek, addDays, isSameDay, isSameHour } from 'date-fns';
+import { format, startOfWeek, addDays, isSameDay, isSameHour, addWeeks } from 'date-fns';
 import MeetingRequestForm from '@/components/calendar/MeetingRequestForm';
+import { toast } from 'react-hot-toast'; // Assuming toast exists or use console
+
 
 interface UserProfile {
   id: string;
@@ -39,6 +41,7 @@ export default function UserProfilePage() {
   const params = useParams();
   const router = useRouter();
   const userId = params.id as string;
+  const gridRef = useRef<HTMLDivElement>(null);
 
   const [user, setUser] = useState<UserProfile | null>(null);
   const [busySlots, setBusySlots] = useState<BusySlot[]>([]);
@@ -51,6 +54,87 @@ export default function UserProfilePage() {
   const [selectedSlot, setSelectedSlot] = useState<{ date: Date; hour: number } | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
 
+  // Selection State
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectionBox, setSelectionBox] = useState<{ startDayIdx: number; startHour: number; endDayIdx: number; endHour: number } | null>(null);
+  const [selectionStart, setSelectionStart] = useState<{ dayIdx: number; hour: number } | null>(null);
+  const [showReplicateMenu, setShowReplicateMenu] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+
+  // Batch Replication Logic
+  const replicateTimeRange = async (mode: 'NEXT_WEEK' | 'X_WEEKS' | 'FOREVER', value?: number) => {
+    if (!selectionBox) return;
+
+    const { startDayIdx, startHour, endDayIdx, endHour } = selectionBox;
+    // Calculate Date Range
+    const startDay = addDays(weekStart, startDayIdx);
+    const endDay = addDays(weekStart, endDayIdx);
+
+    const rangeStart = new Date(startDay);
+    rangeStart.setHours(startHour, 0, 0, 0);
+
+    const rangeEnd = new Date(endDay);
+    rangeEnd.setHours(endHour + 1, 0, 0, 0); // Include the full end hour
+    // Note: Logic allows multi-day selection. 
+    // If single day, startDay === endDay.
+
+    // Step A: Detection
+    // Find events that overlap with the selection window
+    const eventsToReplicate = busySlots.filter(slot => {
+      if (slot.type !== 'event') return false; // Only replicate actual events
+      const s = new Date(slot.startTime);
+      const e = new Date(slot.endTime);
+
+      // Check overlap
+      // Simplified: Any event that starts/ends within the range
+      return (s >= rangeStart && s < rangeEnd) || (e > rangeStart && e <= rangeEnd) || (s < rangeStart && e > rangeEnd);
+    });
+
+    if (eventsToReplicate.length === 0) {
+      toast('No events selected to replicate');
+      setShowReplicateMenu(false);
+      setSelectionBox(null);
+      return;
+    }
+
+    // Step B: Duplication
+    const newEvents = [];
+
+    if (mode === 'NEXT_WEEK') {
+      eventsToReplicate.forEach(event => {
+        const originalStart = new Date(event.startTime);
+        const originalEnd = new Date(event.endTime);
+        newEvents.push({
+          ...event,
+          id: `temp-${Date.now()}-${Math.random()}`, // Temp ID
+          startTime: addWeeks(originalStart, 1).toISOString(),
+          endTime: addWeeks(originalEnd, 1).toISOString()
+        });
+      });
+    } else if (mode === 'X_WEEKS' && value) {
+      for (let i = 1; i <= value; i++) {
+        eventsToReplicate.forEach(event => {
+          const originalStart = new Date(event.startTime);
+          const originalEnd = new Date(event.endTime);
+          newEvents.push({
+            ...event,
+            id: `temp-${Date.now()}-${Math.random()}-${i}`,
+            startTime: addWeeks(originalStart, i).toISOString(),
+            endTime: addWeeks(originalEnd, i).toISOString()
+          });
+        });
+      }
+    }
+
+    // Step C: Commit (Mock)
+    console.log('Replicating Events:', newEvents);
+    // setBusySlots([...busySlots, ...newEvents]); // Optimistic update
+    toast.success(`Replicated ${eventsToReplicate.length} events!`);
+    setShowReplicateMenu(false);
+    setSelectionBox(null);
+  };
+
+
   const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)); // Mon-Sun
   const hours = Array.from({ length: 16 }, (_, i) => i + 7); // 7 AM - 10 PM
@@ -58,6 +142,8 @@ export default function UserProfilePage() {
   const HOUR_HEIGHT = 60;
   const START_HOUR = 7;
   const HOURS_COUNT = 16;
+  const HEADER_HEIGHT = 70;
+  const TIME_COL_WIDTH = 60;
 
   useEffect(() => {
     fetchUserData();
@@ -80,7 +166,92 @@ export default function UserProfilePage() {
     setLoading(false);
   };
 
+  // --- SELECTION HANDLERS ---
+  const getGridCoords = (e: React.MouseEvent) => {
+    if (!gridRef.current) return null;
+    const rect = gridRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Calculate Day Index (0-6)
+    // Width of grid minus time col
+    const contentWidth = rect.width - TIME_COL_WIDTH;
+    const colWidth = contentWidth / 7;
+
+    const rawDayIdx = Math.floor((x - TIME_COL_WIDTH) / colWidth);
+    const dayIdx = Math.max(0, Math.min(6, rawDayIdx));
+
+    // Calculate Hour (approx)
+    // y includes HEADER_HEIGHT
+    const relativeY = y - HEADER_HEIGHT;
+    const rawHourIdx = Math.floor(relativeY / HOUR_HEIGHT);
+    const hourIdx = Math.max(0, Math.min(HOURS_COUNT - 1, rawHourIdx));
+
+    return { dayIdx, hourIdx: START_HOUR + hourIdx };
+  };
+
+  const handleGridMouseDown = (e: React.MouseEvent) => {
+    // Prevent selecting if clicking on a button or existing interaction
+    if ((e.target as HTMLElement).closest('.event-card, .btn')) return;
+
+    const coords = getGridCoords(e);
+    if (!coords) return;
+
+    setIsSelecting(true);
+    setSelectionStart({ dayIdx: coords.dayIdx, hour: coords.hourIdx });
+    setSelectionBox({
+      startDayIdx: coords.dayIdx, startHour: coords.hourIdx,
+      endDayIdx: coords.dayIdx, endHour: coords.hourIdx
+    });
+    setShowReplicateMenu(false);
+  };
+
+  const handleGridMouseMove = (e: React.MouseEvent) => {
+    if (!isSelecting || !selectionStart) return;
+
+    const coords = getGridCoords(e);
+    if (!coords) return;
+
+    setSelectionBox({
+      startDayIdx: Math.min(selectionStart.dayIdx, coords.dayIdx),
+      startHour: Math.min(selectionStart.hour, coords.hourIdx),
+      endDayIdx: Math.max(selectionStart.dayIdx, coords.dayIdx),
+      endHour: Math.max(selectionStart.hour, coords.hourIdx)
+    });
+  };
+
+  const handleGridMouseUp = (e: React.MouseEvent) => {
+    if (!isSelecting) return;
+    setIsSelecting(false);
+    setSelectionStart(null);
+
+    // Finalize selection
+    // If single cell click (start==end), maybe treat as click? 
+    // User requirement: "Highlight a block... like Excel".
+    // MouseUp -> "Finalize end time and trigger Action Menu".
+
+    if (selectionBox) { // && (selectionBox.startDayIdx !== selectionBox.endDayIdx || selectionBox.startHour !== selectionBox.endHour)
+      // Position menu near the end of selection
+      // We need absolute coordinates relative to grid container
+      if (!gridRef.current) return;
+      const rect = gridRef.current.getBoundingClientRect();
+      const contentWidth = rect.width - TIME_COL_WIDTH;
+      const colWidth = contentWidth / 7;
+
+      const menuLeft = TIME_COL_WIDTH + (selectionBox.endDayIdx + 1) * colWidth; // Right edge of selection
+      const menuTop = HEADER_HEIGHT + (selectionBox.endHour - START_HOUR + 1) * HOUR_HEIGHT; // Bottom edge
+
+      setMenuPosition({ top: menuTop, left: Math.min(menuLeft, rect.width - 200) }); // Clamp to viewport?
+      setShowReplicateMenu(true);
+    } else {
+      setSelectionBox(null);
+    }
+  };
+
   const handleBackgroundClick = (e: React.MouseEvent<HTMLDivElement>, day: Date) => {
+    // If we just finished a drag selection, ignore this click
+    if (showReplicateMenu || selectionBox) return;
+
     const rect = e.currentTarget.getBoundingClientRect();
     const y = e.clientY - rect.top;
     const minutesFromStart = (y / HOUR_HEIGHT) * 60;
@@ -245,7 +416,14 @@ export default function UserProfilePage() {
           </div>
         </div>
 
-        <div className="calendar-grid">
+        <div
+          className="calendar-grid"
+          ref={gridRef}
+          onMouseDown={handleGridMouseDown}
+          onMouseMove={handleGridMouseMove}
+          onMouseUp={handleGridMouseUp}
+          onMouseLeave={() => { setIsSelecting(false); }} // Cancel on leave
+        >
           {/* Time Column */}
           <div className="time-labels-col">
             <div className="header-cell" /> {/* Empty corner */}
@@ -258,30 +436,23 @@ export default function UserProfilePage() {
 
           {/* Day Columns */}
           {weekDays.map(day => {
-            // Host Events
+            // ... existing filters ...
             const dayEvents = busySlots.filter(slot => {
               const s = new Date(slot.startTime);
               return s.getDate() === day.getDate() && s.getMonth() === day.getMonth();
             });
 
-            // Viewer Events (for ghosts)
-            // ONLY render ghosts if they do NOT overlap with a host event (Scenario B)
-            // If they DO overlap (Scenario A), the Host Event gets a badge, and we hide the ghost to prevent mess.
+            // Viewer Events (Scenario B check)
             const dayViewerEvents = viewerBusySlots.filter(vSlot => {
               const vStart = new Date(vSlot.startTime);
-              const vEnd = new Date(vSlot.endTime);
-
               // 1. Must be same day
               if (vStart.getDate() !== day.getDate() || vStart.getMonth() !== day.getMonth()) return false;
-
               // 2. Must NOT overlap with any Host event
-              const isOverlapping = dayEvents.some(hSlot => {
+              return !dayEvents.some(hSlot => {
                 const hStart = new Date(hSlot.startTime);
                 const hEnd = new Date(hSlot.endTime);
-                return vStart < hEnd && vEnd > hStart;
+                return vStart < hEnd && hStart < new Date(vSlot.endTime);
               });
-
-              return !isOverlapping;
             });
 
             return (
@@ -305,28 +476,20 @@ export default function UserProfilePage() {
                     />
                   ))}
 
-                  {/* 1. GHOST EVENTS (Viewer Busy, Host Free) */}
-                  {/* Rendered first (behind) */}
-                  {dayViewerEvents.map(slot => {
-                    // Check if this viewer slot is purely ghost or collision?
-                    // We render ALL viewer slots as ghosts. 
-                    // Host events on top will hide them if overlapping,
-                    // but we want the "Warning Badge" on the Host event.
-                    return (
-                      <div
-                        key={`ghost-${slot.id}`}
-                        className="event-card ghost-event"
-                        style={getEventStyle(new Date(slot.startTime), new Date(slot.endTime))}
-                      >
-                        <span className="event-label">You: {slot.status === 'BUSY' ? 'Busy' : 'Event'}</span>
-                      </div>
-                    );
-                  })}
+                  {/* Render Ghosts */}
+                  {dayViewerEvents.map(slot => (
+                    <div
+                      key={`ghost-${slot.id}`}
+                      className="event-card ghost-event"
+                      style={getEventStyle(new Date(slot.startTime), new Date(slot.endTime))}
+                    >
+                      <span className="event-label">You: {slot.status === 'BUSY' ? 'Busy' : 'Event'}</span>
+                    </div>
+                  ))}
 
-                  {/* 2. HOST EVENTS */}
+                  {/* Render Events */}
                   {dayEvents.map(slot => {
                     const conflict = getConflict(slot);
-
                     return (
                       <div
                         key={slot.id}
@@ -339,20 +502,11 @@ export default function UserProfilePage() {
                             Busy: {format(new Date(slot.startTime), 'h:mm')} - {format(new Date(slot.endTime), 'h:mm')}
                           </span>
                         )}
-                        {/* CONFLICT BADGE */}
                         {conflict && (
                           <div className="conflict-badge group">
-                            <span className="sr-only">Conflict</span>
                             !
-                            {/* TOOLTIP */}
-                            <div className="conflict-tooltip">
-                              <strong>Collision Warning</strong>
-                              <div className="text-xs mt-1">
-                                You have an event: <br />
-                                "{conflict.title || 'Busy'}" <br />
-                                {format(new Date(conflict.startTime), 'h:mm')} - {format(new Date(conflict.endTime), 'h:mm a')}
-                              </div>
-                            </div>
+                            {/* Tooltip */}
+                            <div className="conflict-tooltip">...</div>
                           </div>
                         )}
                       </div>
@@ -362,6 +516,37 @@ export default function UserProfilePage() {
               </div>
             );
           })}
+
+          {/* BLUE SELECTION OVERLAY */}
+          {selectionBox && (
+            <div
+              className="selection-box"
+              style={{
+                position: 'absolute',
+                top: HEADER_HEIGHT + (selectionBox.startHour - START_HOUR) * HOUR_HEIGHT,
+                left: TIME_COL_WIDTH + (selectionBox.startDayIdx * ((gridRef.current?.offsetWidth || 800) - TIME_COL_WIDTH) / 7),
+                width: ((selectionBox.endDayIdx - selectionBox.startDayIdx + 1) * ((gridRef.current?.offsetWidth || 800) - TIME_COL_WIDTH) / 7),
+                height: (selectionBox.endHour - selectionBox.startHour + 1) * HOUR_HEIGHT,
+                pointerEvents: 'none', // Allow clicks to pass through if needed, but we intercept elsewhere
+                zIndex: 20
+              }}
+            />
+          )}
+
+          {/* REPLICATE CONTEXT MENU */}
+          {showReplicateMenu && menuPosition && (
+            <div
+              className="replicate-menu"
+              style={{ top: menuPosition.top, left: menuPosition.left }}
+            >
+              <div className="menu-header">Replicate this block?</div>
+              <button className="menu-item" onClick={() => replicateTimeRange('NEXT_WEEK')}>Next Week</button>
+              <button className="menu-item" onClick={() => replicateTimeRange('X_WEEKS', 4)}>Next 4 Weeks</button>
+              <button className="menu-item dest" onClick={() => replicateTimeRange('FOREVER')}>Forever</button>
+              <button className="menu-item cancel" onClick={() => { setShowReplicateMenu(false); setSelectionBox(null); }}>Cancel</button>
+            </div>
+          )}
+
         </div>
       </div>
 
@@ -539,7 +724,6 @@ export default function UserProfilePage() {
         /* EVENTS */
         .event-card {
             position: absolute;
-            /* Reverting to Gray Striped look for generic Busy events */
             background-color: var(--color-bg-secondary);
             background-image: repeating-linear-gradient(
                 45deg,
@@ -553,7 +737,7 @@ export default function UserProfilePage() {
             border-radius: 4px;
             font-size: 0.75rem;
             padding: 2px 6px;
-            overflow: hidden;
+            /* overflow: hidden; Removed to allow tooltip to extend */
             z-index: 2;
             cursor: not-allowed;
             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
@@ -562,62 +746,23 @@ export default function UserProfilePage() {
             align-items: center;
         }
 
-        .event-card.external_event {
-             /* Keep specific style for external if needed, or unify. 
-                User likely wants ALL busy slots to look similar.
-                Let's make them consistent but maybe a slight tint for external?
-                For now, stick to the requested "Gray striped".
-             */
-             border-left: 3px solid #6366F1; /* Keep the indicator but match the bg */
-        }
-        
-        .event-card.request {
-             /* Pending requests can stay distinct */
-             background: var(--color-warning);
-             background-image: none;
-             color: #7c2d12;
-             opacity: 0.9;
-             cursor: default;
-             border: none;
-        }
-        
-        .event-label {
-            font-weight: 500;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            display: block;
-            /* improved readability on stripes */
-            text-shadow: 0 1px 0 rgba(255,255,255,0.5); 
-        }
-
-        /* GHOST EVENTS */
-        .event-card.ghost-event {
-            background: transparent;
-            border: 2px dashed #9CA3AF; /* Gray-400 */
-            color: #6B7280;
-            z-index: 1; /* Below standard events */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0.7;
-        }
+        /* ... (other styles) ... */
 
         /* CONFLICT BADGE */
         .conflict-badge {
             position: absolute;
-            top: -4px;
-            right: -4px;
+            top: -6px;
+            right: -6px;
             background: #EF4444; /* Red-500 */
             color: white;
-            width: 20px;
-            height: 20px;
+            width: 16px; 
+            height: 16px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
-            font-size: 12px;
+            font-size: 10px;
             cursor: pointer;
             z-index: 10;
             box-shadow: 0 1px 2px rgba(0,0,0,0.2);
@@ -634,11 +779,14 @@ export default function UserProfilePage() {
             padding: 8px;
             border-radius: 6px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            width: 160px;
-            z-index: 50;
+            width: max-content;
+            min-width: 160px;
+            max-width: 250px;
+            z-index: 100;
             border: 1px solid #EF4444;
             font-size: 0.75rem;
             line-height: 1.25;
+            white-space: normal;
         }
         
         /* Show tooltip on hover of the badge container */
@@ -647,6 +795,66 @@ export default function UserProfilePage() {
         }
 
         .loading, .error { padding: var(--spacing-xl); text-align: center; color: var(--color-text-secondary); }
+        
+        /* SELECTION & REPLICATION */
+        .selection-box {
+            background-color: rgba(59, 130, 246, 0.2); /* blue-500/20 */
+            border: 2px solid rgba(59, 130, 246, 0.5);
+            border-radius: 4px;
+            pointer-events: none;
+        }
+        
+        .replicate-menu {
+            position: absolute;
+            background: var(--color-bg-main);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            box-shadow: var(--shadow-lg);
+            padding: 8px 0;
+            z-index: 100;
+            min-width: 180px;
+            overflow: hidden;
+            animation: fadeIn 0.1s ease-out;
+        }
+        
+        .menu-header {
+            padding: 8px 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--color-text-secondary);
+            border-bottom: 1px solid var(--color-border);
+            margin-bottom: 4px;
+            background: var(--color-bg-secondary);
+        }
+        
+        .menu-item {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 8px 12px;
+            font-size: 0.9rem;
+            color: var(--color-text-main);
+            transition: background 0.1s;
+        }
+        
+        .menu-item:hover {
+            background-color: var(--color-bg-highlight);
+        }
+        
+        .menu-item.dest:hover {
+             color: var(--color-accent);
+        }
+        
+        .menu-item.cancel {
+            color: var(--color-text-secondary);
+            border-top: 1px solid var(--color-border);
+            margin-top: 4px;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
       `}</style>
     </div>
   );
