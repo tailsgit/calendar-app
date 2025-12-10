@@ -146,13 +146,74 @@ export async function GET(
             ...externalBusySlots
         ];
 
+        // ... (existing code for target user busySlots)
+
+        // --- FETCH VIEWER'S EVENTS (For Collision Detection) ---
+        let viewerBusySlots: any[] = [];
+        const viewerId = session.user.id;
+
+        if (viewerId !== targetUserId) {
+            // Internal Events
+            const vEvents = await prisma.event.findMany({
+                where: {
+                    ownerId: viewerId,
+                    startTime: { gte: startDate },
+                    endTime: { lte: endDate },
+                    status: { not: 'CANCELLED' }
+                },
+                select: { id: true, startTime: true, endTime: true, status: true, title: true }
+            });
+
+            const vParticipations = await prisma.participant.findMany({
+                where: {
+                    userId: viewerId,
+                    status: { in: ['ACCEPTED', 'PENDING'] },
+                    event: {
+                        startTime: { gte: startDate },
+                        endTime: { lte: endDate },
+                        status: { not: 'CANCELLED' }
+                    }
+                },
+                include: { event: { select: { id: true, startTime: true, endTime: true, status: true, title: true } } }
+            });
+
+            // External Events
+            const [vGoogle, vOutlook] = await Promise.all([
+                getGoogleCalendarEvents(viewerId, startDate, endDate),
+                getOutlookCalendarEvents(viewerId, startDate, endDate)
+            ]);
+
+            const vExternal = [...vGoogle, ...vOutlook].map(e => ({
+                id: e.id,
+                startTime: e.start,
+                endTime: e.end,
+                status: 'BUSY',
+                title: e.title || 'External Event',
+                type: 'external_event'
+            }));
+
+            viewerBusySlots = [
+                ...vEvents.map(e => ({ ...e, type: 'event' })),
+                ...vParticipations.map(p => ({ ...p.event, type: 'event' })),
+                ...vExternal
+            ];
+        }
+
         // Fetch availability
         const availability = await prisma.availability.findMany({
             where: { userId: targetUserId },
             orderBy: { dayOfWeek: 'asc' },
         });
 
-        return NextResponse.json({ user, busySlots, availability, weekStart: startDate, weekEnd: endDate, isTeamMember });
+        return NextResponse.json({
+            user,
+            busySlots,
+            viewerBusySlots, // Return viewer's slots
+            availability,
+            weekStart: startDate,
+            weekEnd: endDate,
+            isTeamMember
+        });
     } catch (error) {
         console.error('Error fetching user calendar:', error);
         return NextResponse.json({ error: 'Failed to fetch calendar' }, { status: 500 });

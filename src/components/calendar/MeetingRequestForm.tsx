@@ -89,8 +89,8 @@ export default function MeetingRequestForm({
   };
 
   return (
-    <div className="meeting-request-overlay">
-      <div className="meeting-request-panel">
+    <div className="meeting-request-overlay" onClick={onClose}>
+      <div className="meeting-request-panel" onClick={(e) => e.stopPropagation()}>
         <div className="panel-header">
           <h2>Request Meeting</h2>
           <button className="close-btn" onClick={onClose}>×</button>
@@ -142,7 +142,7 @@ export default function MeetingRequestForm({
             </div>
           </div>
 
-          {/* Duration pills removed in favor of flexible end time */}
+          {/* ... rest of form ... */}
 
           <div className="form-group">
             <label>Meeting Title <span className="required">*</span></label>
@@ -155,6 +155,12 @@ export default function MeetingRequestForm({
               maxLength={100}
             />
           </div>
+
+          {/* ... */}
+          {/* We need to be careful with the ReplaceFileContent context limits. 
+            The file is small enough that we can replace the render block or just use multiple chunks.
+            Let's use MultiReplace to be precise.
+        */}
 
           <div className="form-group">
             <label>Location</label>
@@ -355,8 +361,9 @@ export default function MeetingRequestForm({
           font-size: 1.1rem;
           padding: 8px 12px;
           font-weight: 500;
-          border-color: var(--color-border);
-          background: var(--color-bg-main);
+          border: 1px solid var(--color-border);
+          background: var(--color-bg-secondary);
+          color: var(--color-text-main);
           width: 100%;
           border-radius: var(--radius-md);
           cursor: pointer;

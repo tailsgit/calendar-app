@@ -24,7 +24,8 @@ interface BusySlot {
   startTime: string;
   endTime: string;
   status: string;
-  type: 'event' | 'request';
+  type: 'event' | 'request' | 'external_event';
+  title?: string;
 }
 
 interface AvailabilitySlot {
@@ -41,6 +42,7 @@ export default function UserProfilePage() {
 
   const [user, setUser] = useState<UserProfile | null>(null);
   const [busySlots, setBusySlots] = useState<BusySlot[]>([]);
+  const [viewerBusySlots, setViewerBusySlots] = useState<BusySlot[]>([]);
   const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
   const [isTeamMember, setIsTeamMember] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -53,6 +55,10 @@ export default function UserProfilePage() {
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)); // Mon-Sun
   const hours = Array.from({ length: 16 }, (_, i) => i + 7); // 7 AM - 10 PM
 
+  const HOUR_HEIGHT = 60;
+  const START_HOUR = 7;
+  const HOURS_COUNT = 16;
+
   useEffect(() => {
     fetchUserData();
   }, [userId, selectedDate]);
@@ -64,6 +70,7 @@ export default function UserProfilePage() {
         const data = await res.json();
         setUser(data.user);
         setBusySlots(data.busySlots || []);
+        setViewerBusySlots(data.viewerBusySlots || []);
         setAvailability(data.availability || []);
         setIsTeamMember(data.isTeamMember || false);
       }
@@ -73,42 +80,42 @@ export default function UserProfilePage() {
     setLoading(false);
   };
 
-  const HOUR_HEIGHT = 60;
-  const START_HOUR = 7;
-  const HOURS_COUNT = 16;
-
   const handleBackgroundClick = (e: React.MouseEvent<HTMLDivElement>, day: Date) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const y = e.clientY - rect.top;
     const minutesFromStart = (y / HOUR_HEIGHT) * 60;
-
-    // Snap to 15 minutes
     const snappedMinutes = Math.round(minutesFromStart / 15) * 15;
 
     const clickDate = new Date(day);
     clickDate.setHours(START_HOUR, 0, 0, 0);
     clickDate.setMinutes(snappedMinutes);
 
-    // Check if clicked time is available
-    // Availability determines if we can click
-    // We can reuse the isSlotBusy logic but for specific minute? 
-    // For now, let's allow the click and let the background visual indicate availability.
-    // Or we can check if the snapped time falls into a "unavailable" background block.
-
-    // Simple check: is this exact time inside a busy slot? (UI shows it, but logic should prevent)
-    const isBusy = busySlots.some(slot => {
+    // Check Host Busy
+    const isHostBusy = busySlots.some(slot => {
       const s = new Date(slot.startTime);
       const e = new Date(slot.endTime);
       return clickDate >= s && clickDate < e;
     });
+    if (isHostBusy) return;
 
-    if (isBusy) return;
+    // Check Viewer Busy (don't allow booking if I am busy)
+    const isViewerBusy = viewerBusySlots.some(slot => {
+      const s = new Date(slot.startTime);
+      const e = new Date(slot.endTime);
+      return clickDate >= s && clickDate < e;
+    });
+    // Optional: Block booking if viewer is busy? 
+    // User requested "Ghost Event" visualization, usually implies blocking.
+    // Let's block it for safety or just show warning. 
+    // Usually clicking a ghost event selects it? Let's simplify: if visual is there, maybe alert.
+    // For now, allow click but UI shows conflict.
 
-    // Check availability rules
+    // Check availability
     if (!isTeamMember) {
+      // ... existing availability check
       const dayOfWeek = day.getDay();
       const dayConfig = availability.find(a => a.dayOfWeek === dayOfWeek);
-      if (!dayConfig || !dayConfig.isEnabled) return; // Unavailable day
+      if (!dayConfig || !dayConfig.isEnabled) return;
 
       const clickTimeMins = clickDate.getHours() * 60 + clickDate.getMinutes();
       const [sH, sM] = dayConfig.startTime.split(':').map(Number);
@@ -116,38 +123,32 @@ export default function UserProfilePage() {
       const startMins = sH * 60 + sM;
       const endMins = eH * 60 + eM;
 
-      if (clickTimeMins < startMins || clickTimeMins >= endMins) return; // Unavailable time
+      if (clickTimeMins < startMins || clickTimeMins >= endMins) return;
     }
 
-    setSelectedSlot({ date: clickDate, hour: clickDate.getHours() }); // hour param technically redundant now but kept for compat
+    setSelectedSlot({ date: clickDate, hour: clickDate.getHours() });
     setShowRequestForm(true);
   };
 
-  const getEventStyle = (slot: BusySlot) => {
-    const start = new Date(slot.startTime);
-    const end = new Date(slot.endTime);
-
-    // Calculate top relative to START_HOUR
+  const getEventStyle = (start: Date, end: Date) => {
     const startHour = start.getHours();
     const startMin = start.getMinutes();
     const minutesFromStart = (startHour - START_HOUR) * 60 + startMin;
 
     const top = (minutesFromStart / 60) * HOUR_HEIGHT;
-
-    // Calculate height
     const durationMins = (end.getTime() - start.getTime()) / (1000 * 60);
     const height = (durationMins / 60) * HOUR_HEIGHT;
 
     return {
       top: `${Math.max(0, top)}px`,
-      height: `${Math.max(15, height)}px`, // Min height for visibility
+      height: `${Math.max(15, height)}px`,
       left: '4px',
       right: '4px'
     };
   };
 
-  // Helper for background coloring (similar to old isSlotBusy but just for background)
   const getSlotStatus = (day: Date, hour: number) => {
+    // ... existing logic ...
     if (!isTeamMember) {
       const dayOfWeek = day.getDay();
       const dayConfig = availability.find(a => a.dayOfWeek === dayOfWeek);
@@ -155,15 +156,25 @@ export default function UserProfilePage() {
 
       const slotTime = hour * 60;
       const [sH, sM] = dayConfig.startTime.split(':').map(Number);
-      const [eH, eM] = dayConfig.endTime.split(':').map(Number); // e.g. 17:00
+      const [eH, eM] = dayConfig.endTime.split(':').map(Number);
       const startMins = sH * 60 + sM;
-      const endMins = eH * 60 + eM; // 17*60 = 1020
-
-      // If slot is 16:00 (960 mins), it is VALID if 960 >= 540 && 960 < 1020.
-      // If slot is 17:00, it is INVALID.
+      const endMins = eH * 60 + eM;
       if (slotTime < startMins || slotTime >= endMins) return 'unavailable';
     }
     return 'free';
+  };
+
+  // Conflict Detection Helper
+  const getConflict = (hostSlot: BusySlot) => {
+    const hStart = new Date(hostSlot.startTime);
+    const hEnd = new Date(hostSlot.endTime);
+
+    return viewerBusySlots.find(vSlot => {
+      const vStart = new Date(vSlot.startTime);
+      const vEnd = new Date(vSlot.endTime);
+      // Overlap logic: (StartA < EndB) and (EndA > StartB)
+      return hStart < vEnd && hEnd > vStart;
+    });
   };
 
   const handleRequestSuccess = () => {
@@ -247,9 +258,15 @@ export default function UserProfilePage() {
 
           {/* Day Columns */}
           {weekDays.map(day => {
+            // Host Events
             const dayEvents = busySlots.filter(slot => {
               const s = new Date(slot.startTime);
-              // Simple day check (timezone naive for now, assumes consistent base)
+              return s.getDate() === day.getDate() && s.getMonth() === day.getMonth();
+            });
+
+            // Viewer Events (for ghosts)
+            const dayViewerEvents = viewerBusySlots.filter(slot => {
+              const s = new Date(slot.startTime);
               return s.getDate() === day.getDate() && s.getMonth() === day.getMonth();
             });
 
@@ -274,19 +291,59 @@ export default function UserProfilePage() {
                     />
                   ))}
 
-                  {/* Absolute Events */}
-                  {dayEvents.map(slot => (
-                    <div
-                      key={slot.id}
-                      className={`event-card ${slot.type}`}
-                      style={getEventStyle(slot)}
-                      title={slot.type === 'event' ? 'Busy' : 'Proposed Request'}
-                    >
-                      {slot.type === 'request' && <span className="event-label">Request</span>}
-                      {slot.type === 'event' && isTeamMember && <span className="event-label">Busy</span>}
-                      {/* External events might have title 'Busy' from API */}
-                    </div>
-                  ))}
+                  {/* 1. GHOST EVENTS (Viewer Busy, Host Free) */}
+                  {/* Rendered first (behind) */}
+                  {dayViewerEvents.map(slot => {
+                    // Check if this viewer slot is purely ghost or collision?
+                    // We render ALL viewer slots as ghosts. 
+                    // Host events on top will hide them if overlapping,
+                    // but we want the "Warning Badge" on the Host event.
+                    return (
+                      <div
+                        key={`ghost-${slot.id}`}
+                        className="event-card ghost-event"
+                        style={getEventStyle(new Date(slot.startTime), new Date(slot.endTime))}
+                      >
+                        <span className="event-label">You: {slot.status === 'BUSY' ? 'Busy' : 'Event'}</span>
+                      </div>
+                    );
+                  })}
+
+                  {/* 2. HOST EVENTS */}
+                  {dayEvents.map(slot => {
+                    const conflict = getConflict(slot);
+
+                    return (
+                      <div
+                        key={slot.id}
+                        className={`event-card ${slot.type}`}
+                        style={getEventStyle(new Date(slot.startTime), new Date(slot.endTime))}
+                      >
+                        {slot.type === 'request' && <span className="event-label">Request</span>}
+                        {(slot.type === 'event' || slot.type === 'external_event') && (
+                          <span className="event-label">
+                            Busy: {format(new Date(slot.startTime), 'h:mm')} - {format(new Date(slot.endTime), 'h:mm')}
+                          </span>
+                        )}
+                        {/* CONFLICT BADGE */}
+                        {conflict && (
+                          <div className="conflict-badge group">
+                            <span className="sr-only">Conflict</span>
+                            !
+                            {/* TOOLTIP */}
+                            <div className="conflict-tooltip">
+                              <strong>Collision Warning</strong>
+                              <div className="text-xs mt-1">
+                                You have an event: <br />
+                                "{conflict.title || 'Busy'}" <br />
+                                {format(new Date(conflict.startTime), 'h:mm')} - {format(new Date(conflict.endTime), 'h:mm a')}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -294,6 +351,7 @@ export default function UserProfilePage() {
         </div>
       </div>
 
+      {/* Modals ... */}
       {showRequestForm && (
         <MeetingRequestForm
           recipient={user}
@@ -467,35 +525,110 @@ export default function UserProfilePage() {
         /* EVENTS */
         .event-card {
             position: absolute;
-            background: var(--color-secondary-brand);
-            color: white;
+            /* Reverting to Gray Striped look for generic Busy events */
+            background-color: var(--color-bg-secondary);
+            background-image: repeating-linear-gradient(
+                45deg,
+                var(--color-bg-secondary),
+                var(--color-bg-secondary) 10px,
+                var(--color-border) 10px,
+                var(--color-border) 20px
+            );
+            color: var(--color-text-secondary);
+            border: 1px solid var(--color-border);
             border-radius: 4px;
             font-size: 0.75rem;
-            padding: 2px 4px;
+            padding: 2px 6px;
             overflow: hidden;
             z-index: 2;
-            cursor: default;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            /* pointer-events: none; */ /* Let clicks pass through to grid? No, events usually block */
+            cursor: not-allowed;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
             pointer-events: auto;
+            display: flex;
+            align-items: center;
         }
 
         .event-card.external_event {
-             background: #6366F1; /* Indigo */
-             border-left: 3px solid #4F46E5;
+             /* Keep specific style for external if needed, or unify. 
+                User likely wants ALL busy slots to look similar.
+                Let's make them consistent but maybe a slight tint for external?
+                For now, stick to the requested "Gray striped".
+             */
+             border-left: 3px solid #6366F1; /* Keep the indicator but match the bg */
         }
         
         .event-card.request {
-             background: var(--color-warning); /* Orange for pending */
+             /* Pending requests can stay distinct */
+             background: var(--color-warning);
+             background-image: none;
              color: #7c2d12;
              opacity: 0.9;
+             cursor: default;
+             border: none;
         }
         
         .event-label {
-            font-weight: 600;
+            font-weight: 500;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            display: block;
+            /* improved readability on stripes */
+            text-shadow: 0 1px 0 rgba(255,255,255,0.5); 
+        }
+
+        /* GHOST EVENTS */
+        .event-card.ghost-event {
+            background: transparent;
+            border: 2px dashed #9CA3AF; /* Gray-400 */
+            color: #6B7280;
+            z-index: 1; /* Below standard events */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.7;
+        }
+
+        /* CONFLICT BADGE */
+        .conflict-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            background: #EF4444; /* Red-500 */
+            color: white;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 12px;
+            cursor: pointer;
+            z-index: 10;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+        
+        .conflict-tooltip {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: white;
+            color: #1F2937;
+            padding: 8px;
+            border-radius: 6px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            width: 160px;
+            z-index: 50;
+            border: 1px solid #EF4444;
+            font-size: 0.75rem;
+            line-height: 1.25;
+        }
+        
+        /* Show tooltip on hover of the badge container */
+        .conflict-badge:hover .conflict-tooltip {
             display: block;
         }
 
