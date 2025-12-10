@@ -19,9 +19,10 @@ interface WeekViewProps {
   onEventClick?: (event: Event) => void;
   onTimeSlotClick?: (date: Date, hour: number) => void;
   onConflictClick?: (group: any) => void;
+  onDayContextMenu?: (e: React.MouseEvent, date: Date) => void;
 }
 
-export default function WeekView({ currentDate, events, onEventClick, onTimeSlotClick, onConflictClick }: WeekViewProps) {
+export default function WeekView({ currentDate, events, onEventClick, onTimeSlotClick, onConflictClick, onDayContextMenu }: WeekViewProps) {
   const startDate = startOfWeek(currentDate, { weekStartsOn: 1 }); // Monday start
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(startDate, i));
   const hours = Array.from({ length: 17 }, (_, i) => i + 7); // 7 AM - 11 PM (07:00 - 23:00)
@@ -35,7 +36,14 @@ export default function WeekView({ currentDate, events, onEventClick, onTimeSlot
       <div className="week-header">
         <div className="time-column-header"></div>
         {weekDays.map((day) => (
-          <div key={day.toString()} className={`day-header ${isSameDay(day, new Date()) ? 'today' : ''}`}>
+          <div
+            key={day.toString()}
+            className={`day-header ${isSameDay(day, new Date()) ? 'today' : ''}`}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              onDayContextMenu?.(e, day);
+            }}
+          >
             <div className="day-name">{format(day, 'EEE')}</div>
             <div className="day-number">{format(day, 'd')}</div>
           </div>
@@ -61,6 +69,10 @@ export default function WeekView({ currentDate, events, onEventClick, onTimeSlot
                 key={day.toString()}
                 className="day-column"
                 style={{ flex: 1 }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  onDayContextMenu?.(e, day);
+                }}
               >
                 {hours.map((hour) => (
                   <div

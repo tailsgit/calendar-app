@@ -36,6 +36,10 @@ export default function CalendarContainer() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [eventModalMode, setEventModalMode] = useState<'view' | 'edit' | 'create'>('view');
 
+  // Clipboard & Context Menu State
+  const [clipboardEvents, setClipboardEvents] = useState<Event[]>([]);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; date: Date } | null>(null);
+
   const [selectedObject, setSelectedObject] = useState<Event | null>(null);
 
   const handleReschedule = async (event: Event, newStart: Date) => {
@@ -133,6 +137,59 @@ export default function CalendarContainer() {
   }, [fetchEvents]);
 
   const handleToday = () => setCurrentDate(new Date());
+
+  // --- Copy/Paste Logic ---
+  const handleDayContextMenu = (e: React.MouseEvent, date: Date) => {
+    // Only show if we have something to paste? Or always show "Paste" disabled?
+    // User requirement: "If the user right-clicks... show Paste". 
+    setContextMenu({ x: e.clientX, y: e.clientY, date });
+  };
+
+  const copyEvent = (event: Event) => {
+    setClipboardEvents([event]); // Current implementation supports single event copy, or multiple if we expanded UI
+    toast.success('Event copied to clipboard');
+  };
+
+  const pasteEventsToDate = async () => {
+    if (!contextMenu || clipboardEvents.length === 0) return;
+
+    const targetDate = contextMenu.date; // The day we right-clicked on
+    const promises = clipboardEvents.map(originalEvent => {
+      const originalStart = new Date(originalEvent.startTime);
+      const originalEnd = new Date(originalEvent.endTime);
+
+      // Create new Start Date: Target Year/Month/Day + Original Hours/Minutes
+      const newStart = new Date(targetDate);
+      newStart.setHours(originalStart.getHours(), originalStart.getMinutes(), 0, 0);
+
+      // Calculate Duration to find End Date
+      const durationMs = originalEnd.getTime() - originalStart.getTime();
+      const newEnd = new Date(newStart.getTime() + durationMs);
+
+      // Determine ID (New UUID or let backend handle it) -> Let backend handle by omitting ID
+      const { id, ...eventData } = originalEvent;
+
+      return handleSaveEvent({
+        ...eventData,
+        id: '', // Empty ID triggers POST
+        startTime: newStart.toISOString(),
+        endTime: newEnd.toISOString(),
+        title: `${originalEvent.title} (Copy)` // Optional: Append copy? User didn't ask, but helpful.
+      });
+    });
+
+    try {
+      await Promise.all(promises);
+      toast.success(`Pasted ${clipboardEvents.length} events to ${format(targetDate, 'MMM d')}`);
+      fetchEvents();
+    } catch (error) {
+      console.error("Paste failed", error);
+      toast.error("Failed to paste events");
+    } finally {
+      setContextMenu(null);
+    }
+  };
+
 
   const handleEventClick = (event: Event) => {
     // Always open the unified EventModal
@@ -250,6 +307,7 @@ export default function CalendarContainer() {
           events={events}
           onEventClick={handleEventClick}
           onTimeSlotClick={handleTimeSlotClick}
+          onDayContextMenu={handleDayContextMenu}
         />
       )}
 
@@ -259,6 +317,7 @@ export default function CalendarContainer() {
           events={events}
           onEventClick={handleEventClick}
           onTimeSlotClick={handleTimeSlotClick}
+        // DayView might need same prop if we want it there too
         />
       )}
 
@@ -301,7 +360,32 @@ export default function CalendarContainer() {
         mode={eventModalMode}
         currentUserId={session?.user?.id}
         onRespond={handleRespond}
+        // @ts-ignore
+        onCopy={copyEvent}
       />
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          className="context-menu"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onMouseLeave={() => setContextMenu(null)}
+        >
+          <button
+            className="menu-item"
+            onClick={pasteEventsToDate}
+            disabled={clipboardEvents.length === 0}
+          >
+            Paste Events ({clipboardEvents.length})
+          </button>
+          <button
+            className="menu-item cancel"
+            onClick={() => setContextMenu(null)}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
 
       <style jsx>{`
@@ -309,6 +393,41 @@ export default function CalendarContainer() {
           height: 100%;
           display: flex;
           flex-direction: column;
+        }
+
+        .context-menu {
+          position: fixed;
+          background: white;
+          border: 1px solid var(--color-border);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          border-radius: 8px;
+          padding: 4px 0;
+          z-index: 9999;
+          min-width: 150px;
+        }
+
+        .menu-item {
+          display: block;
+          width: 100%;
+          text-align: left;
+          padding: 8px 12px;
+          background: none;
+          border: none;
+          cursor: pointer;
+          font-size: 0.9rem;
+          color: var(--color-text-main);
+        }
+        .menu-item:hover:not(:disabled) {
+          background-color: var(--color-bg-secondary);
+        }
+        .menu-item:disabled {
+          color: var(--color-text-secondary);
+          cursor: not-allowed;
+          opacity: 0.6;
+        }
+        .menu-item.cancel {
+          border-top: 1px solid var(--color-border);
+          color: var(--color-text-secondary);
         }
       `}</style>
     </div>

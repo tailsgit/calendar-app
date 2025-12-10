@@ -29,9 +29,10 @@ interface EventModalProps {
     mode: 'view' | 'edit' | 'create';
     currentUserId?: string;
     onRespond?: (id: string, action: 'accept' | 'decline') => Promise<void>;
+    onCopy?: (event: Event) => void;
 }
 
-export default function EventModal({ event, isOpen, onClose, onSave, onDelete, mode, currentUserId, onRespond }: EventModalProps) {
+export default function EventModal({ event, isOpen, onClose, onSave, onDelete, mode, currentUserId, onRespond, onCopy }: EventModalProps) {
     const [formData, setFormData] = useState<Partial<Event>>({
         title: '',
         description: '',
@@ -496,9 +497,23 @@ export default function EventModal({ event, isOpen, onClose, onSave, onDelete, m
                                                 </button>
                                             </div>
                                         ) : (
-                                            <button className="btn btn-danger" onClick={() => setShowDeleteConfirm(true)} disabled={loading}>
-                                                Delete
-                                            </button>
+                                            <div className="flex gap-2">
+                                                <button className="btn btn-danger" onClick={() => setShowDeleteConfirm(true)} disabled={loading}>
+                                                    Delete
+                                                </button>
+                                                {onCopy && (
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-secondary"
+                                                        onClick={() => {
+                                                            if (event) onCopy(event);
+                                                            onClose();
+                                                        }}
+                                                    >
+                                                        Copy
+                                                    </button>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                     <button className="btn btn-primary" onClick={() => setIsEditing(true)}>
