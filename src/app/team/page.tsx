@@ -228,7 +228,7 @@ function TeamCalendarContent() {
           <button onClick={() => router.push('/')}>Cancel</button>
         </div>
       )}
-      <div className="team-header flex justify-between items-center">
+      <div className="team-header">
         <MultiUserSearch
           selectedUsers={selectedUsers}
           onAddUser={handleAddUser}
@@ -387,10 +387,13 @@ function TeamCalendarContent() {
                 }
 
                 .team-header {
-                    padding: var(--spacing-lg);
+                    padding: var(--spacing-lg); /* Ensure even padding around */
                     border-bottom: 1px solid var(--color-border);
                     background: var(--color-bg-secondary);
                     z-index: 10;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.5rem; /* Space between Search and Controls */
                 }
 
                 .team-content {
@@ -488,8 +491,10 @@ function TeamCalendarContent() {
                 .header-controls {
                     display: flex;
                     align-items: center;
+                    justify-content: center; /* Center the controls row */
                     gap: 1.5rem;
-                    margin-left: 1rem;
+                    /* margin-left removed for vertical stacking alignment */
+                    width: 100%; /* Ensure it takes full width for centering */
                 }
 
                 .date-nav-group {
