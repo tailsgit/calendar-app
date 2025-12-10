@@ -55,6 +55,7 @@ export default function AvailabilityPage() {
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [editingSlot, setEditingSlot] = useState<{ slot: AvailabilitySlot, index: number } | null>(null);
+  const [pendingSlot, setPendingSlot] = useState<{ dayIndex: number, hour: number } | null>(null);
 
   useEffect(() => {
     fetchAvailability();
@@ -134,25 +135,55 @@ export default function AvailabilityPage() {
     toast.success('Booking link copied to clipboard!');
   };
 
+  const createSlot = (dayIndex: number, hour: number) => {
+    const startTime = `${hour.toString().padStart(2, '0')}:00`;
+    const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`;
+    const newSlot = { dayOfWeek: dayIndex, startTime, endTime };
+    setSlots([...slots, newSlot]);
+  };
+
+  const confirmOverride = () => {
+    if (pendingSlot) {
+      createSlot(pendingSlot.dayIndex, pendingSlot.hour);
+      setPendingSlot(null);
+      toast.success('Availability added over busy slot');
+    }
+  };
+
   const handleGridClick = (dayIndex: number, hour: number) => {
     const startTime = `${hour.toString().padStart(2, '0')}:00`;
     const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`;
 
-    // Check for overlap
+    // Check for overlap with existing availability slots
     const newStart = timeToMinutes(startTime);
     const newEnd = timeToMinutes(endTime);
 
-    const hasOverlap = slots.some(s => {
+    const hasSlotOverlap = slots.some(s => {
       if (s.dayOfWeek !== dayIndex) return false;
       const sStart = timeToMinutes(s.startTime);
       const sEnd = timeToMinutes(s.endTime);
       return (newStart < sEnd && newEnd > sStart);
     });
 
-    if (hasOverlap) return;
+    if (hasSlotOverlap) return;
 
-    const newSlot = { dayOfWeek: dayIndex, startTime, endTime };
-    setSlots([...slots, newSlot]);
+    // Check for Event Overlap
+    const hasEventOverlap = calendarEvents.some(e => {
+      if (e.dayOfWeek !== dayIndex) return false;
+      const start = new Date(e.startTime);
+      const end = new Date(e.endTime);
+      const eStart = start.getHours() * 60 + start.getMinutes();
+      const eEnd = end.getHours() * 60 + end.getMinutes();
+      return (newStart < eEnd && newEnd > eStart);
+    });
+
+    if (hasEventOverlap) {
+      setPendingSlot({ dayIndex, hour });
+      return;
+    }
+
+    // No overlap, create immediately
+    createSlot(dayIndex, hour);
   };
 
   const handleSlotClick = (e: React.MouseEvent, index: number) => {
@@ -316,6 +347,21 @@ export default function AvailabilityPage() {
           </div>
         ))}
       </div>
+
+      {/* Confirmation Modal */}
+      {pendingSlot && (
+        <>
+          <div className="popover-backdrop" onClick={() => setPendingSlot(null)} style={{ zIndex: 150 }} />
+          <div className="confirm-modal">
+            <h3>Overlap Detected</h3>
+            <p>This time overlaps with an existing calendar event. Do you really want to mark it as available?</p>
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setPendingSlot(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={confirmOverride}>Yes, Override</button>
+            </div>
+          </div>
+        </>
+      )}
 
       {editingSlot && (
         <>
@@ -543,6 +589,34 @@ export default function AvailabilityPage() {
           background: rgba(239, 68, 68, 0.1);
         }
         .btn-danger:hover { background: rgba(239, 68, 68, 0.2); }
+
+        .confirm-modal {
+          position: fixed;
+          top: 50%; left: 50%;
+          transform: translate(-50%, -50%);
+          background: var(--color-bg-main);
+          padding: var(--spacing-lg);
+          border-radius: var(--radius-lg);
+          box-shadow: var(--shadow-xl);
+          z-index: 200;
+          width: 320px;
+          border: 1px solid var(--color-border);
+          text-align: center;
+        }
+        .confirm-modal h3 {
+            margin-bottom: 0.5rem;
+            color: var(--color-warning);
+        }
+        .confirm-modal p {
+            margin-bottom: 1.5rem;
+            color: var(--color-text-secondary);
+            font-size: 0.9rem;
+        }
+        .modal-actions {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+        }
       `}</style>
     </div>
   );
