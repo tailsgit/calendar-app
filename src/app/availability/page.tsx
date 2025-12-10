@@ -165,13 +165,18 @@ export default function AvailabilityPage() {
     return (
         <div className="availability-page container">
             <div className="header">
-                <div>
-                    <h1>Office Hours</h1>
-                    <p>Click on the grid to add availability. Click slot to edit.</p>
+                <div className="header-top">
+                    <h1>Booking</h1>
+                    <button className="btn btn-secondary" onClick={handleCopyLink} title="Generate Booking Link">
+                        <LinkIcon size={16} className="mr-2" /> Copy Link
+                    </button>
                 </div>
-                <button className="btn btn-secondary" onClick={handleCopyLink} title="Generate Booking Link">
-                    <LinkIcon size={16} style={{ marginRight: '8px' }} /> Copy Link
-                </button>
+                <p className="link-description">
+                    Share this link to let others book time with you. They can sign in and schedule meetings during your available slots.
+                </p>
+                <p className="grid-help">
+                    Click on the grid to add availability. Click an existing slot to edit.
+                </p>
             </div>
 
             <div className="visual-grid-container">
@@ -269,11 +274,29 @@ export default function AvailabilityPage() {
           padding-bottom: 5rem;
         }
         
-        .header { 
-            margin-bottom: 2rem; 
+        .header { margin-bottom: 2rem; }
+
+        .header-top {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .link-description {
+            color: var(--color-text-secondary);
+            font-size: 0.95rem;
+            margin-bottom: 1rem;
+            max-width: 600px;
+        }
+
+        .grid-help {
+            font-size: 0.85rem;
+            color: var(--color-text-light);
+            background: var(--color-bg-secondary);
+            padding: 8px 12px;
+            border-radius: var(--radius-md);
+            display: inline-block;
         }
         
         .visual-grid-container {

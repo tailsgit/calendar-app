@@ -58,7 +58,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           <span className="text">Groups</span>
         </Link>
         <Link href="/availability" className={`nav-item nav-availability ${isActive('/availability') ? 'active' : ''}`} aria-current={isActive('/availability') ? 'page' : undefined}>
-          <span className="text">Office Hours</span>
+          <span className="text">Booking</span>
         </Link>
       </nav>
 
