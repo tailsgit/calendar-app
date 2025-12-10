@@ -73,48 +73,97 @@ export default function UserProfilePage() {
     setLoading(false);
   };
 
-  const isSlotBusy = (day: Date, hour: number) => {
-    // 1. Availability Rules (Skip if Team Member)
-    // Team members see ALL slots unless actually busy with an event
-    if (!isTeamMember) {
-      const dayOfWeek = day.getDay(); // 0 = Sunday
-      const dayConfig = availability.find(a => a.dayOfWeek === dayOfWeek);
+  const HOUR_HEIGHT = 60;
+  const START_HOUR = 7;
+  const HOURS_COUNT = 16;
 
-      if (!dayConfig || !dayConfig.isEnabled) return 'unavailable';
+  const handleBackgroundClick = (e: React.MouseEvent<HTMLDivElement>, day: Date) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const minutesFromStart = (y / HOUR_HEIGHT) * 60;
 
-      const slotTime = hour * 60; // minutes from midnight
-      const [startHour, startMin] = dayConfig.startTime.split(':').map(Number);
-      const [endHour, endMin] = dayConfig.endTime.split(':').map(Number);
-      const startTime = startHour * 60 + startMin;
-      const endTime = endHour * 60 + endMin;
+    // Snap to 15 minutes
+    const snappedMinutes = Math.round(minutesFromStart / 15) * 15;
 
-      if (slotTime < startTime || slotTime >= endTime) return 'unavailable';
-    }
+    const clickDate = new Date(day);
+    clickDate.setHours(START_HOUR, 0, 0, 0);
+    clickDate.setMinutes(snappedMinutes);
 
-    // 2. Actual Calendar Events
+    // Check if clicked time is available
+    // Availability determines if we can click
+    // We can reuse the isSlotBusy logic but for specific minute? 
+    // For now, let's allow the click and let the background visual indicate availability.
+    // Or we can check if the snapped time falls into a "unavailable" background block.
+
+    // Simple check: is this exact time inside a busy slot? (UI shows it, but logic should prevent)
     const isBusy = busySlots.some(slot => {
-      const slotStart = new Date(slot.startTime);
-      const slotEnd = new Date(slot.endTime);
-      const slotHour = new Date(day);
-      slotHour.setHours(hour, 0, 0, 0);
-
-      // Simple overlap check for the hour slot
-      // Slot: 14:00 - 15:00
-      // Event: 14:30 - 15:00 -> Busy
-      const slotHourEnd = new Date(slotHour);
-      slotHourEnd.setHours(hour + 1);
-
-      return slotStart < slotHourEnd && slotEnd > slotHour;
+      const s = new Date(slot.startTime);
+      const e = new Date(slot.endTime);
+      return clickDate >= s && clickDate < e;
     });
 
-    return isBusy ? 'busy' : 'free';
+    if (isBusy) return;
+
+    // Check availability rules
+    if (!isTeamMember) {
+      const dayOfWeek = day.getDay();
+      const dayConfig = availability.find(a => a.dayOfWeek === dayOfWeek);
+      if (!dayConfig || !dayConfig.isEnabled) return; // Unavailable day
+
+      const clickTimeMins = clickDate.getHours() * 60 + clickDate.getMinutes();
+      const [sH, sM] = dayConfig.startTime.split(':').map(Number);
+      const [eH, eM] = dayConfig.endTime.split(':').map(Number);
+      const startMins = sH * 60 + sM;
+      const endMins = eH * 60 + eM;
+
+      if (clickTimeMins < startMins || clickTimeMins >= endMins) return; // Unavailable time
+    }
+
+    setSelectedSlot({ date: clickDate, hour: clickDate.getHours() }); // hour param technically redundant now but kept for compat
+    setShowRequestForm(true);
   };
 
-  const handleSlotClick = (day: Date, hour: number) => {
-    if (isSlotBusy(day, hour) !== 'free') return;
+  const getEventStyle = (slot: BusySlot) => {
+    const start = new Date(slot.startTime);
+    const end = new Date(slot.endTime);
 
-    setSelectedSlot({ date: day, hour });
-    setShowRequestForm(true);
+    // Calculate top relative to START_HOUR
+    const startHour = start.getHours();
+    const startMin = start.getMinutes();
+    const minutesFromStart = (startHour - START_HOUR) * 60 + startMin;
+
+    const top = (minutesFromStart / 60) * HOUR_HEIGHT;
+
+    // Calculate height
+    const durationMins = (end.getTime() - start.getTime()) / (1000 * 60);
+    const height = (durationMins / 60) * HOUR_HEIGHT;
+
+    return {
+      top: `${Math.max(0, top)}px`,
+      height: `${Math.max(15, height)}px`, // Min height for visibility
+      left: '4px',
+      right: '4px'
+    };
+  };
+
+  // Helper for background coloring (similar to old isSlotBusy but just for background)
+  const getSlotStatus = (day: Date, hour: number) => {
+    if (!isTeamMember) {
+      const dayOfWeek = day.getDay();
+      const dayConfig = availability.find(a => a.dayOfWeek === dayOfWeek);
+      if (!dayConfig || !dayConfig.isEnabled) return 'unavailable';
+
+      const slotTime = hour * 60;
+      const [sH, sM] = dayConfig.startTime.split(':').map(Number);
+      const [eH, eM] = dayConfig.endTime.split(':').map(Number); // e.g. 17:00
+      const startMins = sH * 60 + sM;
+      const endMins = eH * 60 + eM; // 17*60 = 1020
+
+      // If slot is 16:00 (960 mins), it is VALID if 960 >= 540 && 960 < 1020.
+      // If slot is 17:00, it is INVALID.
+      if (slotTime < startMins || slotTime >= endMins) return 'unavailable';
+    }
+    return 'free';
   };
 
   const handleRequestSuccess = () => {
@@ -186,33 +235,62 @@ export default function UserProfilePage() {
         </div>
 
         <div className="calendar-grid">
-          <div className="time-col header" />
-          {weekDays.map(day => (
-            <div key={day.toISOString()} className={`day-col header ${isSameDay(day, new Date()) ? 'today' : ''}`}>
-              <div className="day-name">{format(day, 'EEE')}</div>
-              <div className="day-num">{format(day, 'd')}</div>
-            </div>
-          ))}
-
-          {hours.map(hour => (
-            <div key={`row-${hour}`} style={{ display: 'contents' }}>
-              <div className="time-col">
-                {format(new Date().setHours(hour, 0), 'h a')}
+          {/* Time Column */}
+          <div className="time-labels-col">
+            <div className="header-cell" /> {/* Empty corner */}
+            {hours.map(hour => (
+              <div key={hour} className="time-label" style={{ height: HOUR_HEIGHT }}>
+                <span>{format(new Date().setHours(hour, 0), 'h a')}</span>
               </div>
-              {weekDays.map(day => {
-                const status = isSlotBusy(day, hour);
-                return (
-                  <div
-                    key={`${day}-${hour}`}
-                    className={`time-slot ${status}`}
-                    onClick={() => handleSlotClick(day, hour)}
-                  >
-                    {status === 'busy' && <span className="busy-label">Busy</span>}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
+            ))}
+          </div>
+
+          {/* Day Columns */}
+          {weekDays.map(day => {
+            const dayEvents = busySlots.filter(slot => {
+              const s = new Date(slot.startTime);
+              // Simple day check (timezone naive for now, assumes consistent base)
+              return s.getDate() === day.getDate() && s.getMonth() === day.getMonth();
+            });
+
+            return (
+              <div key={day.toISOString()} className="day-column">
+                <div className={`day-header ${isSameDay(day, new Date()) ? 'today' : ''}`}>
+                  <div className="day-name">{format(day, 'EEE')}</div>
+                  <div className="day-num">{format(day, 'd')}</div>
+                </div>
+
+                <div
+                  className="day-content"
+                  style={{ height: HOURS_COUNT * HOUR_HEIGHT }}
+                  onClick={(e) => handleBackgroundClick(e, day)}
+                >
+                  {/* Background Grid Cells */}
+                  {hours.map(hour => (
+                    <div
+                      key={hour}
+                      className={`grid-cell ${getSlotStatus(day, hour)}`}
+                      style={{ height: HOUR_HEIGHT }}
+                    />
+                  ))}
+
+                  {/* Absolute Events */}
+                  {dayEvents.map(slot => (
+                    <div
+                      key={slot.id}
+                      className={`event-card ${slot.type}`}
+                      style={getEventStyle(slot)}
+                      title={slot.type === 'event' ? 'Busy' : 'Proposed Request'}
+                    >
+                      {slot.type === 'request' && <span className="event-label">Request</span>}
+                      {slot.type === 'event' && isTeamMember && <span className="event-label">Busy</span>}
+                      {/* External events might have title 'Busy' from API */}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -220,7 +298,7 @@ export default function UserProfilePage() {
         <MeetingRequestForm
           recipient={user}
           initialDate={selectedSlot?.date || new Date()}
-          initialTime={selectedSlot?.hour || 9}
+          initialTime={selectedSlot?.date?.getHours() || 9}
           onClose={() => setShowRequestForm(false)}
           onSuccess={handleRequestSuccess}
         />
@@ -241,86 +319,24 @@ export default function UserProfilePage() {
           display: flex;
           align-items: center;
           gap: var(--spacing-xl);
+          flex-shrink: 0;
         }
 
-        .back-btn {
-          color: var(--color-text-secondary);
-          font-size: 0.9rem;
-        }
-
-        .profile-info {
-          display: flex;
-          align-items: center;
-          gap: var(--spacing-lg);
-          flex: 1;
-        }
-
-        .avatar-large {
-          width: 80px;
-          height: 80px;
-          border-radius: 50%;
-          background: var(--color-accent);
-          color: white;
-          font-size: 2rem;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          position: relative;
-        }
-
-        .avatar-large img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          border-radius: 50%;
-        }
-
-        .status-indicator {
-          position: absolute;
-          bottom: 4px;
-          right: 4px;
-          width: 16px;
-          height: 16px;
-          border-radius: 50%;
-          border: 2px solid var(--color-bg-main);
-        }
-
+        /* ... existing header styles ... */
+        .back-btn { color: var(--color-text-secondary); font-size: 0.9rem; }
+        .profile-info { display: flex; align-items: center; gap: var(--spacing-lg); flex: 1; }
+        .avatar-large { width: 80px; height: 80px; border-radius: 50%; background: var(--color-accent); color: white; font-size: 2rem; display: flex; align-items: center; justify-content: center; position: relative; }
+        .avatar-large img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+        .status-indicator { position: absolute; bottom: 4px; right: 4px; width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--color-bg-main); }
         .status-indicator.available { background: var(--color-success); }
         .status-indicator.busy { background: var(--color-error); }
         .status-indicator.away { background: var(--color-warning); }
-
-        .details h1 {
-          font-size: 1.5rem;
-          margin-bottom: var(--spacing-xs);
-        }
-
-        .meta {
-          color: var(--color-text-secondary);
-          margin-bottom: var(--spacing-xs);
-        }
-
-        .email-link {
-          color: var(--color-accent);
-          font-size: 0.9rem;
-        }
-
-        .actions {
-          margin-left: auto;
-        }
-
-        .request-btn {
-          padding: 0.75rem 1.5rem;
-          background: var(--color-secondary-brand);
-          color: white;
-          border-radius: var(--radius-md);
-          font-weight: 600;
-          font-size: 1rem;
-          transition: transform var(--transition-fast);
-        }
-
-        .request-btn:hover {
-          transform: scale(1.05);
-        }
+        .details h1 { font-size: 1.5rem; margin-bottom: var(--spacing-xs); }
+        .meta { color: var(--color-text-secondary); margin-bottom: var(--spacing-xs); }
+        .email-link { color: var(--color-accent); font-size: 0.9rem; }
+        .actions { margin-left: auto; }
+        .request-btn { padding: 0.75rem 1.5rem; background: var(--color-secondary-brand); color: white; border-radius: var(--radius-md); font-weight: 600; font-size: 1rem; transition: transform var(--transition-fast); }
+        .request-btn:hover { transform: scale(1.05); }
 
         .success-banner {
           background: var(--color-success);
@@ -351,109 +367,139 @@ export default function UserProfilePage() {
           margin-bottom: var(--spacing-lg);
         }
 
-        .week-nav {
-          display: flex;
-          align-items: center;
-          gap: var(--spacing-md);
-          color: var(--color-text-main);
-        }
+        .week-nav { display: flex; align-items: center; gap: var(--spacing-md); color: var(--color-text-main); }
+        .nav-btn { color: var(--color-text-secondary); padding: var(--spacing-sm); border-radius: var(--radius-md); transition: all var(--transition-fast); white-space: nowrap; }
+        .nav-btn:hover { color: var(--color-text-main); background: var(--color-bg-secondary); }
 
-        .nav-btn {
-          color: var(--color-text-secondary);
-          padding: var(--spacing-sm);
-          border-radius: var(--radius-md);
-          transition: all var(--transition-fast);
-          white-space: nowrap;
-        }
-
-        .nav-btn:hover {
-          color: var(--color-text-main);
-          background: var(--color-bg-secondary);
-        }
-
+        /* --- NEW GRID STYLES --- */
         .calendar-grid {
           flex: 1;
-          display: grid;
-          grid-template-columns: 60px repeat(7, 1fr);
+          display: flex;
           border: 1px solid var(--color-border);
           border-radius: var(--radius-lg);
           background: var(--color-bg-main);
           overflow-y: auto;
         }
 
-        .time-col {
-          padding: var(--spacing-sm);
-          text-align: right;
-          font-size: 0.75rem;
-          color: var(--color-text-secondary);
+        .time-labels-col {
+          width: 60px;
+          flex-shrink: 0;
           border-right: 1px solid var(--color-border);
-          border-bottom: 1px solid var(--color-border);
+          background: var(--color-bg-main);
+          position: sticky;
+          left: 0;
+          z-index: 10;
         }
 
-        .day-col {
+        .header-cell {
+            height: 70px; /* Match day-header height roughly */
+            border-bottom: 1px solid var(--color-border);
+            background: var(--color-bg-secondary);
+        }
+
+        .time-label {
+            display: flex;
+            justify-content: flex-end;
+            padding-right: var(--spacing-sm);
+            color: var(--color-text-secondary);
+            font-size: 0.75rem;
+            /* transform: translateY(-50%); */ /* Center label on line? Or preserve old look */
+            /* Actually, alignment looks better if label is at top or -0.5em */
+            align-items: flex-start; 
+            padding-top: 4px;
+        }
+
+        .day-column {
+          flex: 1;
+          border-right: 1px solid var(--color-border);
+          min-width: 100px;
+          display: flex;
+          flex-direction: column;
+        }
+        .day-column:last-child { border-right: none; }
+
+        .day-header {
           padding: var(--spacing-md);
           text-align: center;
           border-bottom: 1px solid var(--color-border);
           background: var(--color-bg-secondary);
           position: sticky;
           top: 0;
-        }
-
-        .day-col.today {
-          background: var(--color-bg-highlight);
-        }
-
-        .time-slot {
-          border-right: 1px solid var(--color-border);
-          border-bottom: 1px solid var(--color-border);
-          height: 60px;
-          transition: background-color var(--transition-fast);
+          z-index: 5;
+          height: 70px;
           display: flex;
-          align-items: center;
+          flex-direction: column;
           justify-content: center;
         }
+        .day-header.today { background: var(--color-bg-highlight); }
+        .day-name { font-weight: 600; font-size: 0.9rem; margin-bottom: 2px; }
+        .day-num { font-size: 1.1rem; }
 
-        .time-slot.free:hover {
-          background: var(--color-bg-highlight);
-          cursor: pointer;
+        .day-content {
+          position: relative; /* Container for absolute events */
+          flex: 1;
         }
 
-        .time-slot.unavailable {
-          background: var(--color-bg-secondary);
-          opacity: 0.5;
-          cursor: not-allowed;
-          background-image: repeating-linear-gradient(
-            -45deg,
-            transparent,
-            transparent 5px,
-            rgba(0,0,0,0.05) 5px,
-            rgba(0,0,0,0.05) 10px
-          );
+        .grid-cell {
+          border-bottom: 1px solid var(--color-border);
+          box-sizing: border-box;
+          transition: background-color var(--transition-fast);
+        }
+        .grid-cell:hover {
+            background-color: var(--color-bg-highlight);
+            cursor: pointer;
+        }
+        
+        /* Availability Coloring */
+        .grid-cell.unavailable {
+           background: var(--color-bg-secondary);
+           opacity: 0.5;
+           cursor: not-allowed;
+           background-image: repeating-linear-gradient(
+             -45deg,
+             transparent,
+             transparent 5px,
+             rgba(0,0,0,0.05) 5px,
+             rgba(0,0,0,0.05) 10px
+           );
         }
 
-        .time-slot.busy {
-          background: var(--color-bg-secondary);
-          background-image: repeating-linear-gradient(
-            45deg,
-            transparent,
-            transparent 10px,
-            rgba(0,0,0,0.05) 10px,
-            rgba(0,0,0,0.05) 20px
-          );
-          cursor: not-allowed;
+        /* EVENTS */
+        .event-card {
+            position: absolute;
+            background: var(--color-secondary-brand);
+            color: white;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            padding: 2px 4px;
+            overflow: hidden;
+            z-index: 2;
+            cursor: default;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            /* pointer-events: none; */ /* Let clicks pass through to grid? No, events usually block */
+            pointer-events: auto;
         }
 
-        .busy-label {
-          font-size: 0.75rem;
-          color: var(--color-text-secondary);
-          font-weight: 500;
+        .event-card.external_event {
+             background: #6366F1; /* Indigo */
+             border-left: 3px solid #4F46E5;
+        }
+        
+        .event-card.request {
+             background: var(--color-warning); /* Orange for pending */
+             color: #7c2d12;
+             opacity: 0.9;
+        }
+        
+        .event-label {
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: block;
         }
 
-        .loading, .error {
-          padding: var(--spacing-xl);
-          text-align: center;
-          color: var(--color-text-secondary);
-        }
+        .loading, .error { padding: var(--spacing-xl); text-align: center; color: var(--color-text-secondary); }
       `}</style>
     </div>
   );
