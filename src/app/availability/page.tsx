@@ -725,7 +725,7 @@ export default function AvailabilityPage() {
         .v-slot {
           position: absolute;
           left: 4px; right: 4px;
-          background: var(--color-primary);
+          background: var(--color-accent);
           border-radius: 4px;
           padding: 4px;
           color: white;
