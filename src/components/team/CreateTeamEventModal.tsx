@@ -93,9 +93,26 @@ export default function CreateTeamEventModal({ isOpen, onClose, onConfirm, initi
     };
 
     const modalContent = (
-        <div className="modal-overlay" onClick={onClose}>
+        <div
+            className="modal-overlay"
+            onClick={onClose}
+            style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0,0,0,0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 999999,
+                animation: 'fadeIn 0.2s ease'
+            }}
+        >
             <div className="modal-content" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
+
                     <h2>Schedule New Meeting</h2>
                     <button className="close-btn" onClick={onClose}><X size={20} /></button>
                 </div>
@@ -173,14 +190,6 @@ export default function CreateTeamEventModal({ isOpen, onClose, onConfirm, initi
                 </form>
 
                 <style jsx>{`
-                    .modal-overlay {
-                        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-                        background: rgba(0,0,0,0.5);
-                        display: flex; align-items: center; justify-content: center;
-                        z-index: 999999; /* Boost to override Sidebar */
-                        animation: fadeIn 0.2s ease;
-                    }
-
                     @keyframes fadeIn {
                         from { opacity: 0; }
                         to { opacity: 1; }
