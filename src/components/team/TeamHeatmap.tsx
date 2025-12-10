@@ -2,10 +2,8 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { format, startOfWeek, addDays, addHours, isBefore, isAfter, startOfDay } from 'date-fns';
-import { toZonedTime } from 'date-fns-tz';
-import { Loader2, Clock } from 'lucide-react';
-import { findGoldenHours, TimeRange } from '@/lib/timezones';
+import { format, startOfWeek, addDays, addHours } from 'date-fns';
+import { Loader2 } from 'lucide-react';
 
 interface User {
     id: string;
@@ -16,6 +14,7 @@ interface TeamHeatmapProps {
     selectedUsers: User[];
     currentDate: Date;
     timeView: 'week' | 'month';
+    onSlotClick?: (date: Date) => void;
 }
 
 interface BusySlot {
@@ -28,10 +27,9 @@ interface AvailabilityData {
     timeZone: string;
 }
 
-export default function TeamHeatmap({ selectedUsers, currentDate, timeView }: TeamHeatmapProps) {
+export default function TeamHeatmap({ selectedUsers, currentDate, timeView, onSlotClick }: TeamHeatmapProps) {
     const [availabilityMap, setAvailabilityMap] = useState<Record<string, AvailabilityData>>({});
     const [loading, setLoading] = useState(false);
-    const [goldenHours, setGoldenHours] = useState<TimeRange[]>([]);
 
     useEffect(() => {
         if (selectedUsers.length === 0) return;
@@ -64,7 +62,6 @@ export default function TeamHeatmap({ selectedUsers, currentDate, timeView }: Te
                 if (res.ok) {
                     const data = await res.json();
                     setAvailabilityMap(data);
-                    // Golden hours calculation omitted for brevity/optimization in month view
                 }
             } catch (error) {
                 console.error("Failed to load heatmap", error);
@@ -172,13 +169,22 @@ export default function TeamHeatmap({ selectedUsers, currentDate, timeView }: Te
                         else bg = 'var(--color-bg-secondary)'; // No data?
 
                         return (
-                            <div key={i} style={{
-                                background: bg,
-                                minHeight: '80px',
-                                padding: '4px',
-                                display: 'flex', flexDirection: 'column', alignItems: 'flex-end',
-                                opacity: 0.9, transition: 'opacity 0.2s', cursor: 'pointer'
-                            }} title={`Availability Score: ${Math.round(score * 100)}%`}>
+                            <div key={i}
+                                onClick={() => {
+                                    if (onSlotClick) {
+                                        const clickDate = new Date(d);
+                                        clickDate.setHours(9, 0, 0, 0); // Default to 9 AM for day clicks
+                                        onSlotClick(clickDate);
+                                    }
+                                }}
+                                style={{
+                                    background: bg,
+                                    minHeight: '80px',
+                                    padding: '4px',
+                                    display: 'flex', flexDirection: 'column', alignItems: 'flex-end',
+                                    opacity: 0.9, transition: 'opacity 0.2s',
+                                    cursor: onSlotClick ? 'pointer' : 'default'
+                                }} title={`Availability Score: ${Math.round(score * 100)}%`}>
                                 <span style={{ fontSize: '0.85rem', fontWeight: 600, color: score > 0.5 ? 'white' : 'var(--color-text-main)' }}>{format(d, 'd')}</span>
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
                                     <span style={{ fontSize: '0.9rem', fontWeight: 700, color: score > 0.5 ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.6)' }}>
@@ -268,14 +274,21 @@ export default function TeamHeatmap({ selectedUsers, currentDate, timeView }: Te
 
                             return (
                                 <div
-                                    key={`cell-${day}-${hour}`}
+                                    key={`cell-${cellKey(day, hour)}`}
                                     className="heatmap-cell"
+                                    onClick={() => {
+                                        if (onSlotClick) {
+                                            const clickDate = new Date(day);
+                                            clickDate.setHours(hour, 0, 0, 0);
+                                            onSlotClick(clickDate);
+                                        }
+                                    }}
                                     style={{
                                         position: 'relative',
                                         height: '48px',
                                         backgroundColor: backgroundColor,
                                         opacity: isBusy ? 0.8 : (isAllFree ? 1 : 0.5), // Adjust opacity for non-busy slots if needed
-                                        cursor: 'pointer',
+                                        cursor: onSlotClick ? 'pointer' : 'default',
                                         transition: 'filter 0.2s',
                                     }}
                                 >
@@ -339,4 +352,8 @@ export default function TeamHeatmap({ selectedUsers, currentDate, timeView }: Te
             `}</style>
         </div>
     );
+}
+
+function cellKey(day: Date, hour: number) {
+    return `${day.toISOString()}-${hour}`;
 }

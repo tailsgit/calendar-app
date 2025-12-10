@@ -324,7 +324,12 @@ function TeamCalendarContent() {
           contentView === 'heatmap' ? (
             <div className="p-6 h-full overflow-y-auto">
               {/* Pass timeView prop to support Month Heatmap */}
-              <TeamHeatmap selectedUsers={selectedUsers} currentDate={currentDate} timeView={timeView} />
+              <TeamHeatmap
+                selectedUsers={selectedUsers}
+                currentDate={currentDate}
+                timeView={timeView}
+                onSlotClick={handleSlotClick}
+              />
             </div>
           ) : timeView === 'month' ? (
             <div className="month-columns-container h-full overflow-x-auto">
@@ -335,6 +340,7 @@ function TeamCalendarContent() {
                       user={user}
                       events={userEvents[user.id] || []}
                       currentDate={currentDate}
+                      onSlotClick={handleSlotClick}
                     />
                   </div>
                 ))}

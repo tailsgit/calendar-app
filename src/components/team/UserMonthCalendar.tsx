@@ -18,12 +18,14 @@ interface UserMonthCalendarProps {
     user: User;
     events: CalendarEvent[];
     currentDate: Date;
+    onSlotClick?: (date: Date) => void;
 }
 
-export default function UserMonthCalendar({ user, events, currentDate }: UserMonthCalendarProps) {
+export default function UserMonthCalendar({ user, events, currentDate, onSlotClick }: UserMonthCalendarProps) {
+    // ... (existing code for dates)
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(monthStart);
-    const startDate = startOfWeek(monthStart, { weekStartsOn: 1 }); // Monday start
+    const startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
     const endDate = endOfWeek(monthEnd, { weekStartsOn: 1 });
 
     const calendarDays = [];
@@ -56,7 +58,19 @@ export default function UserMonthCalendar({ user, events, currentDate }: UserMon
                     dayEvents.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
                     return (
-                        <div key={idx} className={`month-cell ${!isCurrentMonth ? 'other-month' : ''} ${isToday ? 'is-today' : ''}`}>
+                        <div
+                            key={idx}
+                            className={`month-cell ${!isCurrentMonth ? 'other-month' : ''} ${isToday ? 'is-today' : ''}`}
+                            onClick={() => {
+                                if (onSlotClick) {
+                                    // Default to 9 AM for month view clicks
+                                    const clickDate = new Date(date);
+                                    clickDate.setHours(9, 0, 0, 0);
+                                    onSlotClick(clickDate);
+                                }
+                            }}
+                            style={{ cursor: onSlotClick ? 'pointer' : 'default' }}
+                        >
                             <div className="month-date-label">{format(date, 'd')}</div>
                             <div className="month-cell-content">
                                 {dayEvents.slice(0, 3).map((event, i) => (
