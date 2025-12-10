@@ -62,12 +62,12 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
                   <span>{session.user.email}</span>
                 </div>
                 <div className="menu-divider"></div>
-                <a href="/settings" className="menu-item">⚙️ Settings</a>
+                <a href="/settings" className="menu-item">Settings</a>
                 <button
                   className="menu-item sign-out"
                   onClick={() => signOut()}
                 >
-                  🚪 Sign Out
+                  Sign Out
                 </button>
               </div>
             )}
