@@ -506,7 +506,13 @@ export default function UserProfilePage() {
                           <div className="conflict-badge group">
                             !
                             {/* Tooltip */}
-                            <div className="conflict-tooltip">...</div>
+                            <div className="conflict-tooltip">
+                              <div className="font-semibold mb-1 text-red-600">Conflict</div>
+                              <div className="font-medium text-gray-900">{conflict.title || 'Busy'}</div>
+                              <div className="text-gray-500 text-xs">
+                                {format(new Date(conflict.startTime), 'h:mm a')} - {format(new Date(conflict.endTime), 'h:mm a')}
+                              </div>
+                            </div>
                           </div>
                         )}
                       </div>
