@@ -18,6 +18,9 @@
   --color-border: #E2E8F0;
   /* Slate-200 */
 
+  --color-text-tertiary: #94A3B8;
+  /* Matching text-light / Slate-400 */
+
   /* Status Colors */
   --color-success: #10B981;
   --color-warning: #F59E0B;
@@ -82,6 +85,9 @@
 
   --color-border: #333333;
   /* Subtle Dark Gray Grid */
+
+  --color-text-tertiary: #6B7280;
+  /* Reuse text-light for now */
 
   /* Status colors with better visibility */
   --color-success: #34D399;
