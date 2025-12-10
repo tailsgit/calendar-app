@@ -15,6 +15,18 @@ interface AvailabilitySlot {
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 7 AM - 9 PM
 
+// Helper to format HH:MM to 12-hour
+const formatTime12 = (time: string) => {
+    const [h, m] = time.split(':').map(Number);
+    const ampm = h < 12 ? 'AM' : 'PM';
+    const hour = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return `${hour}:${m.toString().padStart(2, '0')}`; // Short format (e.g. 9:00, 2:00)
+    // Or if minute is 0, just "9 AM"? User screenshot shows "09:00 - 17:00".
+    // User asked "consistantly not military time".
+    // So "9:00 AM - 5:00 PM" is best.
+    return `${hour}:${m.toString().padStart(2, '0')} ${ampm}`;
+};
+
 // Helper to convert time string to minutes
 const timeToMinutes = (time: string) => {
     const [h, m] = time.split(':').map(Number);
@@ -200,7 +212,7 @@ export default function AvailabilityPage() {
                                         style={{ top: `${top}px`, height: `${height}px` }}
                                         onClick={(e) => handleSlotClick(e, originalIndex)}
                                     >
-                                        <span>{slot.startTime} - {slot.endTime}</span>
+                                        <span>{formatTime12(slot.startTime)} - {formatTime12(slot.endTime)}</span>
                                     </div>
                                 );
                             })}
