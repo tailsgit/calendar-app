@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Save, Trash2, X } from 'lucide-react';
+import { useSession } from 'next-auth/react';
+import { Save, Trash2, X, Link as LinkIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface AvailabilitySlot {
-    id?: string; // Optional for new slots
+    id?: string;
     dayOfWeek: number;
-    startTime: string; // HH:MM
-    endTime: string;   // HH:MM
+    startTime: string;
+    endTime: string;
 }
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -20,10 +21,6 @@ const formatTime12 = (time: string) => {
     const [h, m] = time.split(':').map(Number);
     const ampm = h < 12 ? 'AM' : 'PM';
     const hour = h === 0 ? 12 : h > 12 ? h - 12 : h;
-    return `${hour}:${m.toString().padStart(2, '0')}`; // Short format (e.g. 9:00, 2:00)
-    // Or if minute is 0, just "9 AM"? User screenshot shows "09:00 - 17:00".
-    // User asked "consistantly not military time".
-    // So "9:00 AM - 5:00 PM" is best.
     return `${hour}:${m.toString().padStart(2, '0')} ${ampm}`;
 };
 
@@ -42,6 +39,7 @@ const minutesToTime = (mins: number) => {
 
 export default function AvailabilityPage() {
     const router = useRouter();
+    const { data: session } = useSession();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
@@ -73,9 +71,17 @@ export default function AvailabilityPage() {
         }
     };
 
+    const handleCopyLink = () => {
+        if (!session?.user?.id) {
+            toast.error('User ID not found');
+            return;
+        }
+        const link = `${window.location.origin}/user/${session.user.id}`;
+        navigator.clipboard.writeText(link);
+        toast.success('Booking link copied to clipboard!');
+    };
+
     const handleGridClick = (dayIndex: number, hour: number) => {
-        // Check if clicking existing slot handled by slot onClick
-        // Here we create a new slot
         const startTime = `${hour.toString().padStart(2, '0')}:00`;
         const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`;
 
@@ -90,25 +96,22 @@ export default function AvailabilityPage() {
             return (newStart < sEnd && newEnd > sStart);
         });
 
-        if (hasOverlap) return; // Don't create on top of existing
+        if (hasOverlap) return;
 
         const newSlot = { dayOfWeek: dayIndex, startTime, endTime };
         setSlots([...slots, newSlot]);
     };
 
     const handleSlotClick = (e: React.MouseEvent, index: number) => {
-        e.stopPropagation(); // Prevent grid click
+        e.stopPropagation();
 
         // 3-Click Rule Implementation:
-        // 1. First Click (on empty grid) -> Add (handled by handleGridClick)
-        // 2. Second Click (on slot) -> Edit (Open Popover)
-        // 3. Third Click (on slot while editing) -> Remove
-
+        // 1. First Click -> Add
+        // 2. Second Click -> Edit
+        // 3. Third Click -> Remove
         if (editingSlot && editingSlot.index === index) {
-            // Third Click: Remove
             deleteSlot(index);
         } else {
-            // Second Click: Edit
             setEditingSlot({ slot: slots[index], index });
         }
     };
@@ -117,7 +120,6 @@ export default function AvailabilityPage() {
         const updated = [...slots];
         updated[index] = { ...updated[index], ...updates };
         setSlots(updated);
-        // Update editing state too
         setEditingSlot({ slot: updated[index], index });
     };
 
@@ -163,13 +165,15 @@ export default function AvailabilityPage() {
     return (
         <div className="availability-page container">
             <div className="header">
-                <h1>Office Hours</h1>
-                <p>Click on the grid to add availability. Click slot to edit.</p>
+                <div>
+                    <h1>Office Hours</h1>
+                    <p>Click on the grid to add availability. Click slot to edit.</p>
+                </div>
+                <button className="btn btn-secondary" onClick={handleCopyLink} title="Generate Booking Link">
+                    <LinkIcon size={16} style={{ marginRight: '8px' }} /> Copy Link
+                </button>
             </div>
 
-            {/* Visual Grid Container */}
-
-            {/* Re-implementing Grid Structure to support slot positioning */}
             <div className="visual-grid-container">
                 <div className="v-time-col">
                     <div className="v-header-cell"></div>
@@ -183,7 +187,6 @@ export default function AvailabilityPage() {
                     <div key={day} className="v-day-col">
                         <div className="v-header-cell">{day}</div>
                         <div className="v-day-content">
-                            {/* Grid Lines */}
                             {HOURS.map(h => (
                                 <div
                                     key={h}
@@ -192,17 +195,14 @@ export default function AvailabilityPage() {
                                 />
                             ))}
 
-                            {/* Slots for this day */}
                             {slots.filter(s => s.dayOfWeek === dayIndex).map((slot, idx) => {
                                 const startMin = timeToMinutes(slot.startTime);
                                 const endMin = timeToMinutes(slot.endTime);
                                 const duration = endMin - startMin;
                                 const gridStartMin = 7 * 60;
 
-                                const top = ((startMin - gridStartMin) / 60) * 50; // 50px per hour
+                                const top = ((startMin - gridStartMin) / 60) * 50;
                                 const height = (duration / 60) * 50;
-
-                                // Find original index in full array match
                                 const originalIndex = slots.indexOf(slot);
 
                                 return (
@@ -269,7 +269,12 @@ export default function AvailabilityPage() {
           padding-bottom: 5rem;
         }
         
-        .header { margin-bottom: 2rem; }
+        .header { 
+            margin-bottom: 2rem; 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
         
         .visual-grid-container {
           display: flex;
@@ -312,12 +317,12 @@ export default function AvailabilityPage() {
           padding-top: 4px;
           font-size: 0.75rem;
           color: var(--color-text-light);
-          border-bottom: 1px solid rgba(0,0,0,0.05); /* subtle divider */
+          border-bottom: 1px solid rgba(0,0,0,0.05);
         }
         
         .v-day-content {
           position: relative;
-          height: ${HOURS.length * 50}px; /* 15 hours * 50px */
+          height: ${HOURS.length * 50}px;
         }
         
         .v-hour-cell {
@@ -403,8 +408,6 @@ export default function AvailabilityPage() {
           background: rgba(239, 68, 68, 0.1);
         }
         .btn-danger:hover { background: rgba(239, 68, 68, 0.2); }
-        
-
       `}</style>
         </div>
     );
