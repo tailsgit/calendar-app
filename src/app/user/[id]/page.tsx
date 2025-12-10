@@ -98,7 +98,7 @@ export default function UserProfilePage() {
     }
 
     // Step B: Duplication
-    const newEvents = [];
+    const newEvents: BusySlot[] = [];
 
     if (mode === 'NEXT_WEEK') {
       eventsToReplicate.forEach(event => {
