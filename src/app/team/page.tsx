@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, Suspense } from 'react';
-import { format, startOfWeek, addDays } from 'date-fns';
+import { format, startOfWeek, addDays, subWeeks, addWeeks, startOfMonth, endOfMonth, endOfWeek, isSameDay } from 'date-fns';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import MultiUserSearch from '@/components/team/MultiUserSearch';
 import toast from 'react-hot-toast';
 import UserCalendarColumn from '@/components/team/UserCalendarColumn';
@@ -36,7 +37,9 @@ function TeamCalendarContent() {
   const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
   const [userEvents, setUserEvents] = useState<Record<string, Event[]>>({});
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<'calendar' | 'heatmap'>('calendar');
+
+  // 'calendar' implies Week (default columns). 'month' is new. 'heatmap' exists.
+  const [viewMode, setViewMode] = useState<'week' | 'month' | 'heatmap'>('week');
 
   const [rescheduleEvent, setRescheduleEvent] = useState<Event | null>(null);
 
@@ -92,17 +95,28 @@ function TeamCalendarContent() {
   // Fetch events for selected users
   useEffect(() => {
     const fetchEventsForUsers = async () => {
-      const usersToFetch = selectedUsers.filter(u => !userEvents[u.id]);
+      const usersToFetch = selectedUsers; // Always refresh when date changes
 
       if (usersToFetch.length === 0) return;
 
-      const newEventsMap = { ...userEvents };
-      const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-      const weekEnd = addDays(weekStart, 7);
+      const newEventsMap = { ...userEvents }; // Keep existing (maybe cache?) or clear? Let's keep and overwrite.
+
+      let start, end;
+      if (viewMode === 'month') {
+        const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+        start = startOfWeek(monthStart, { weekStartsOn: 1 });
+        const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+        end = endOfWeek(monthEnd, { weekStartsOn: 1 });
+      } else {
+        start = startOfWeek(currentDate, { weekStartsOn: 1 });
+        end = addDays(start, 7);
+      }
 
       await Promise.all(usersToFetch.map(async (user) => {
         try {
-          const res = await fetch(`/api/events?userId=${user.id}&start=${weekStart.toISOString()}&end=${weekEnd.toISOString()}`);
+          // Check if we already have events for this user/range? 
+          // Simple implementation: just fetch.
+          const res = await fetch(`/api/events?userId=${user.id}&start=${start.toISOString()}&end=${end.toISOString()}`);
           if (res.ok) {
             const events = await res.json();
             newEventsMap[user.id] = events;
@@ -116,7 +130,29 @@ function TeamCalendarContent() {
     };
 
     fetchEventsForUsers();
-  }, [selectedUsers, currentDate]);
+  }, [selectedUsers, currentDate, viewMode]);
+
+  const handlePrev = () => {
+    if (viewMode === 'month') setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+    else setCurrentDate(subWeeks(currentDate, 1));
+  };
+  const handleNext = () => {
+    if (viewMode === 'month') setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+    else setCurrentDate(addWeeks(currentDate, 1));
+  };
+  const handleToday = () => setCurrentDate(new Date());
+
+  // Month Grid Gen
+  const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+  const monthGridStart = startOfWeek(monthStart, { weekStartsOn: 1 }); // Monday start for team usually
+  const monthGridEnd = endOfWeek(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0), { weekStartsOn: 1 });
+
+  const monthDays = [];
+  let day = monthGridStart;
+  while (day <= monthGridEnd) {
+    monthDays.push(day);
+    day = addDays(day, 1);
+  }
 
   const columnWidth = selectedUsers.length > 0 ? 100 / selectedUsers.length : 100;
 
@@ -198,43 +234,43 @@ function TeamCalendarContent() {
           onRemoveUser={handleRemoveUser}
         />
 
-        <div className="flex flex-row items-center ml-4" style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-          <button
-            type="button"
-            onClick={() => setViewMode('calendar')}
-            style={{
-              padding: '8px 16px',
-              fontSize: '14px',
-              fontWeight: 600,
-              borderRadius: '8px',
-              border: viewMode === 'calendar' ? '2px solid var(--color-text-main)' : '2px solid var(--color-border)',
-              backgroundColor: viewMode === 'calendar' ? 'var(--color-bg-main)' : 'transparent',
-              color: viewMode === 'calendar' ? 'var(--color-text-main)' : 'var(--color-text-secondary)',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              outline: 'none',
-            }}
-          >
-            Calendar
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('heatmap')}
-            style={{
-              padding: '8px 16px',
-              fontSize: '14px',
-              fontWeight: 600,
-              borderRadius: '8px',
-              border: viewMode === 'heatmap' ? '2px solid var(--color-text-main)' : '2px solid var(--color-border)',
-              backgroundColor: viewMode === 'heatmap' ? 'var(--color-bg-main)' : 'transparent',
-              color: viewMode === 'heatmap' ? 'var(--color-text-main)' : 'var(--color-text-secondary)',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              outline: 'none',
-            }}
-          >
-            Heatmap
-          </button>
+        <div className="flex flex-row items-center ml-4 gap-4">
+          {/* Date Nav */}
+          <div className="date-nav flex items-center bg-white rounded-md border border-neutral-200 p-1">
+            <button onClick={handlePrev} className="p-1 hover:bg-neutral-100 rounded text-neutral-600">
+              <ChevronLeft size={20} />
+            </button>
+            <button onClick={handleToday} className="px-3 py-1 text-sm font-medium hover:bg-neutral-100 rounded text-neutral-700">
+              Today
+            </button>
+            <button onClick={handleNext} className="p-1 hover:bg-neutral-100 rounded text-neutral-600">
+              <ChevronRight size={20} />
+            </button>
+          </div>
+          <span className="text-lg font-medium text-neutral-700 min-w-[140px]">
+            {viewMode === 'week' ? format(startOfWeek(currentDate, { weekStartsOn: 1 }), 'MMMM yyyy') : format(currentDate, 'MMMM yyyy')}
+          </span>
+
+          <div className="view-toggles flex bg-neutral-100 p-1 rounded-md border border-neutral-200">
+            <button
+              onClick={() => setViewMode('week')}
+              className={`px-3 py-1 text-sm font-medium rounded ${viewMode === 'week' ? 'bg-white shadow-sm text-neutral-900' : 'text-neutral-500 hover:text-neutral-700'}`}
+            >
+              Week
+            </button>
+            <button
+              onClick={() => setViewMode('month')}
+              className={`px-3 py-1 text-sm font-medium rounded ${viewMode === 'month' ? 'bg-white shadow-sm text-neutral-900' : 'text-neutral-500 hover:text-neutral-700'}`}
+            >
+              Month
+            </button>
+            <button
+              onClick={() => setViewMode('heatmap')}
+              className={`px-3 py-1 text-sm font-medium rounded ${viewMode === 'heatmap' ? 'bg-white shadow-sm text-neutral-900' : 'text-neutral-500 hover:text-neutral-700'}`}
+            >
+              Heatmap
+            </button>
+          </div>
         </div>
       </div>
 
@@ -249,6 +285,48 @@ function TeamCalendarContent() {
           viewMode === 'heatmap' ? (
             <div className="p-6 h-full overflow-y-auto">
               <TeamHeatmap selectedUsers={selectedUsers} currentDate={currentDate} />
+            </div>
+          ) : viewMode === 'month' ? (
+            <div className="month-grid-container p-4 overflow-y-auto h-full">
+              <div className="month-grid">
+                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
+                  <div key={d} className="month-header-cell">{d}</div>
+                ))}
+                {monthDays.map((date, idx) => {
+                  const isCurrentMonth = date.getMonth() === currentDate.getMonth();
+                  const isToday = isSameDay(date, new Date());
+
+                  // Collect all events for this day
+                  const dayEvents: { event: Event, user: User }[] = [];
+                  selectedUsers.forEach(user => {
+                    const uEvents = userEvents[user.id] || [];
+                    uEvents.forEach(e => {
+                      if (isSameDay(new Date(e.startTime), date)) {
+                        dayEvents.push({ event: e, user });
+                      }
+                    });
+                  });
+
+                  // Sort by time?
+                  dayEvents.sort((a, b) => new Date(a.event.startTime).getTime() - new Date(b.event.startTime).getTime());
+
+                  return (
+                    <div key={idx} className={`month-cell ${!isCurrentMonth ? 'other-month' : ''} ${isToday ? 'is-today' : ''}`}>
+                      <div className="month-date-label">{format(date, 'd')}</div>
+                      <div className="month-cell-content">
+                        {dayEvents.slice(0, 4).map(({ event, user }, i) => (
+                          <div key={i} className="month-team-event" title={`${user.name}: ${event.title}`}>
+                            <div className="user-dot" style={{ background: event.color || '#666' }}></div>
+                            <span className="event-time">{format(new Date(event.startTime), 'HH:mm')}</span>
+                            <span className="event-title">{event.title}</span>
+                          </div>
+                        ))}
+                        {dayEvents.length > 4 && <div className="more-events">+{dayEvents.length - 4} more</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ) : (
             <div className="columns-container">
@@ -272,7 +350,7 @@ function TeamCalendarContent() {
         )}
       </div>
 
-      {viewMode === 'calendar' && (
+      {viewMode === 'week' && (
         <SmartSuggestionsPanel
           selectedUsers={selectedUsers}
           userEvents={userEvents}
@@ -335,6 +413,55 @@ function TeamCalendarContent() {
                     height: 100%;
                     transition: width 0.3s ease;
                 }
+
+                .month-grid {
+                    display: grid;
+                    grid-template-columns: repeat(7, 1fr);
+                    background: var(--color-border);
+                    gap: 1px;
+                    border: 1px solid var(--color-border);
+                    border-radius: var(--radius-lg);
+                    overflow: hidden;
+                    width: 100%;
+                }
+                .month-header-cell {
+                    background: var(--color-bg-secondary);
+                    padding: 8px;
+                    text-align: center;
+                    font-weight: 600;
+                    color: var(--color-text-secondary);
+                }
+                .month-cell {
+                    background: var(--color-bg-main);
+                    min-height: 120px;
+                    padding: 4px;
+                    display: flex; flex-direction: column;
+                }
+                .month-cell.other-month {
+                    background: var(--color-bg-secondary);
+                    opacity: 0.6;
+                }
+                .month-cell.is-today {
+                    background: var(--color-bg-highlight);
+                }
+                .month-date-label {
+                    text-align: right; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 4px;
+                }
+                .month-cell-content {
+                    flex: 1; display: flex; flex-direction: column; gap: 2px;
+                }
+                .month-team-event {
+                    font-size: 0.7rem;
+                    background: var(--color-bg-secondary);
+                    padding: 2px 4px;
+                    border-radius: 2px;
+                    display: flex; align-items: center; gap: 4px;
+                    white-space: nowrap; overflow: hidden;
+                }
+                .user-dot { width: 6px; height: 6px; border-radius: 50%; shrink: 0; }
+                .event-time { color: var(--color-text-tertiary); }
+                .event-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+                .more-events { font-size: 0.7rem; color: var(--color-text-tertiary); padding-left: 4px; }
             `}</style>
     </div>
   );

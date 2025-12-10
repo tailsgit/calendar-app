@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Save, Trash2, X, Link as LinkIcon } from 'lucide-react';
+import { Save, Trash2, X, Link as LinkIcon, ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { startOfWeek, endOfWeek, addDays, getDay } from 'date-fns';
+import { startOfWeek, endOfWeek, addDays, getDay, addWeeks, subWeeks, format, isSameDay } from 'date-fns';
 
 interface AvailabilitySlot {
   id?: string;
@@ -23,7 +23,6 @@ interface CalendarEvent {
   color?: string;
 }
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 7 AM - 9 PM
 
 // Helper to format HH:MM to 12-hour
@@ -57,10 +56,17 @@ export default function AvailabilityPage() {
   const [editingSlot, setEditingSlot] = useState<{ slot: AvailabilitySlot, index: number } | null>(null);
   const [pendingSlot, setPendingSlot] = useState<{ dayIndex: number, hour: number } | null>(null);
 
+  // View State
+  const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
+  const [currentDate, setCurrentDate] = useState(new Date());
+
   useEffect(() => {
     fetchAvailability();
-    fetchCalendarEvents();
   }, []);
+
+  useEffect(() => {
+    fetchCalendarEvents();
+  }, [currentDate, viewMode]);
 
   const fetchAvailability = async () => {
     try {
@@ -85,9 +91,16 @@ export default function AvailabilityPage() {
   };
 
   const fetchCalendarEvents = async () => {
-    const now = new Date();
-    const start = startOfWeek(now, { weekStartsOn: 0 }); // Sunday start to match grid
-    const end = endOfWeek(now, { weekStartsOn: 0 });
+    let start, end;
+    if (viewMode === 'month') {
+      const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      start = startOfWeek(monthStart, { weekStartsOn: 0 });
+      const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+      end = endOfWeek(monthEnd, { weekStartsOn: 0 });
+    } else {
+      start = startOfWeek(currentDate, { weekStartsOn: 0 });
+      end = endOfWeek(currentDate, { weekStartsOn: 0 });
+    }
 
     try {
       // Fetch local
@@ -124,6 +137,40 @@ export default function AvailabilityPage() {
       console.error('Error fetching events', error);
     }
   };
+
+  const handlePrev = () => {
+    if (viewMode === 'month') setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+    else setCurrentDate(subWeeks(currentDate, 1));
+  };
+  const handleNext = () => {
+    if (viewMode === 'month') setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+    else setCurrentDate(addWeeks(currentDate, 1));
+  };
+  const handleToday = () => setCurrentDate(new Date());
+
+  // Generate days for standard week view
+  const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
+  const weekDays = Array.from({ length: 7 }).map((_, i) => {
+    const date = addDays(weekStart, i);
+    return {
+      date,
+      dayName: format(date, 'EEE'),
+      dayNumber: format(date, 'd'),
+      isToday: isSameDay(date, new Date())
+    };
+  });
+
+  // Generate days for Month View
+  const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+  const monthGridStart = startOfWeek(monthStart, { weekStartsOn: 0 });
+  const monthGridEnd = endOfWeek(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0), { weekStartsOn: 0 });
+
+  const monthDays = [];
+  let day = monthGridStart;
+  while (day <= monthGridEnd) {
+    monthDays.push(day);
+    day = addDays(day, 1);
+  }
 
   const handleCopyLink = () => {
     if (!session?.user?.id) {
@@ -169,6 +216,13 @@ export default function AvailabilityPage() {
 
     // Check for Event Overlap
     const hasEventOverlap = calendarEvents.some(e => {
+      // Need to check against specific date events if we are in week view?
+      // But slots are recurring. So we check against *any* event that falls on this day-of-week *in the visible week*?
+      // Yes, that's the logic: overlap with *visible* busy time.
+
+      // Actually, since slots are recurring, checking against this week's events is just a heuristic.
+      // It's still useful.
+
       if (e.dayOfWeek !== dayIndex) return false;
       const start = new Date(e.startTime);
       const end = new Date(e.endTime);
@@ -182,17 +236,11 @@ export default function AvailabilityPage() {
       return;
     }
 
-    // No overlap, create immediately
     createSlot(dayIndex, hour);
   };
 
   const handleSlotClick = (e: React.MouseEvent, index: number) => {
     e.stopPropagation();
-
-    // 3-Click Rule Implementation:
-    // 1. First Click -> Add
-    // 2. Second Click -> Edit
-    // 3. Third Click -> Remove
     if (editingSlot && editingSlot.index === index) {
       deleteSlot(index);
     } else {
@@ -235,7 +283,6 @@ export default function AvailabilityPage() {
     }
   };
 
-  // Generate time options for select
   const timeOptions = Array.from({ length: 48 }).map((_, i) => {
     const h = Math.floor(i / 2);
     const m = (i % 2) * 30;
@@ -251,6 +298,35 @@ export default function AvailabilityPage() {
       <div className="header">
         <div className="header-left">
           <h1>Booking</h1>
+
+          <div className="nav-controls">
+            <div className="view-toggle">
+              <button
+                className={viewMode === 'week' ? 'active' : ''}
+                onClick={() => setViewMode('week')}
+              >Week</button>
+              <button
+                className={viewMode === 'month' ? 'active' : ''}
+                onClick={() => setViewMode('month')}
+              >Month</button>
+            </div>
+
+            <div className="date-nav">
+              <button onClick={handlePrev} className="nav-btn">
+                <ChevronLeft size={20} />
+              </button>
+              <button onClick={handleToday} className="nav-btn today-btn">
+                Today
+              </button>
+              <button onClick={handleNext} className="nav-btn">
+                <ChevronRight size={20} />
+              </button>
+            </div>
+            <span className="current-date-label">
+              {viewMode === 'week' ? format(weekStart, 'MMMM yyyy') : format(currentDate, 'MMMM yyyy')}
+            </span>
+          </div>
+
           <p className="link-description">
             Share this link to let others book time with you. They can sign in and schedule meetings during your available slots.
           </p>
@@ -267,90 +343,136 @@ export default function AvailabilityPage() {
         </div>
       </div>
 
-      <div className="visual-grid-container">
-        <div className="v-time-col">
-          <div className="v-header-cell"></div>
-          {HOURS.map(h => (
-            <div key={h} className="v-time-cell">
-              {h > 12 ? h - 12 : h} {h >= 12 ? 'PM' : 'AM'}
+      {viewMode === 'month' ? (
+        <div className="month-grid">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+            <div key={d} className="month-header-cell">{d}</div>
+          ))}
+          {monthDays.map((date, idx) => {
+            const dayIndex = date.getDay();
+            const isCurrentMonth = date.getMonth() === currentDate.getMonth();
+            const dayEvents = calendarEvents.filter(e => isSameDay(new Date(e.startTime), date));
+            const daySlots = slots.filter(s => s.dayOfWeek === dayIndex);
+            const isToday = isSameDay(date, new Date());
+
+            return (
+              <div key={idx} className={`month-cell ${!isCurrentMonth ? 'other-month' : ''} ${isToday ? 'is-today' : ''}`}>
+                <div className="month-date-label">{format(date, 'd')}</div>
+                <div className="month-cell-content">
+                  {/* Availability Tiny Bars */}
+                  {daySlots.map((s, i) => (
+                    <div key={`s-${i}`} className="month-slot-bar" title={`Avail: ${formatTime12(s.startTime)} - ${formatTime12(s.endTime)}`}>
+                      <div className="slot-dot"></div>
+                      {formatTime12(s.startTime)}
+                    </div>
+                  ))}
+                  {/* Ghost Events - Only show a few */}
+                  {dayEvents.slice(0, 3).map((e, i) => (
+                    <div key={`e-${i}`} className="month-event-bar" style={{ opacity: 0.6 }}>
+                      {e.title || 'Busy'}
+                    </div>
+                  ))}
+                  {dayEvents.length > 3 && <div className="more-events">+{dayEvents.length - 3} more</div>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="visual-grid-container">
+          <div className="v-time-col">
+            <div className="v-header-cell"></div>
+            {HOURS.map(h => (
+              <div key={h} className="v-time-cell">
+                {h > 12 ? h - 12 : h} {h >= 12 ? 'PM' : 'AM'}
+              </div>
+            ))}
+          </div>
+          {weekDays.map((dayObj, dayIndex) => (
+            <div key={dayIndex} className={`v-day-col ${dayObj.isToday ? 'is-today' : ''}`}>
+              <div className="v-header-cell flex-col">
+                <span className="text-xs uppercase text-neutral-500">{dayObj.dayName}</span>
+                <span className={`text-lg font-semibold ${dayObj.isToday ? 'text-blue-600' : 'text-neutral-700'}`}>
+                  {dayObj.dayNumber}
+                </span>
+              </div>
+              <div className="v-day-content">
+                {HOURS.map(h => (
+                  <div
+                    key={h}
+                    className="v-hour-cell"
+                    onClick={() => handleGridClick(dayIndex, h)}
+                  />
+                ))}
+
+                {/* Ghost Events  */}
+                {calendarEvents.filter(e => e.dayOfWeek === dayIndex).map((evt, idx) => {
+                  const startDate = new Date(evt.startTime);
+                  const endDate = new Date(evt.endTime);
+
+                  // Only render if it's ACTUALLY on this date (not just same day of week)
+                  // Since we fetch by range, these events are specific instances.
+                  // But 'dayOfWeek' simple filter matches any Monday. 
+                  // We must check if the date matches dayObj.date for that column.
+
+                  if (!isSameDay(startDate, dayObj.date)) return null;
+
+                  const startMin = startDate.getHours() * 60 + startDate.getMinutes();
+                  const endMin = endDate.getHours() * 60 + endDate.getMinutes();
+
+                  const gridStartMin = 7 * 60; // 7 AM
+                  if (endMin <= gridStartMin) return null;
+
+                  const effectiveStart = Math.max(startMin, gridStartMin);
+                  const effectiveEnd = endMin;
+
+                  const duration = effectiveEnd - effectiveStart;
+                  const top = ((effectiveStart - gridStartMin) / 60) * 50;
+                  const height = (duration / 60) * 50;
+
+                  return (
+                    <div
+                      key={`evt-${idx}`}
+                      className="v-event-ghost"
+                      style={{
+                        top: `${top}px`,
+                        height: `${height}px`,
+                        backgroundColor: evt.color || '#666'
+                      }}
+                      title={evt.title}
+                    >
+                      <span className="event-title">{evt.title || 'Busy'}</span>
+                    </div>
+                  );
+                })}
+
+                {/* Availability Slots (Recurring) */}
+                {slots.filter(s => s.dayOfWeek === dayIndex).map((slot, idx) => {
+                  const startMin = timeToMinutes(slot.startTime);
+                  const endMin = timeToMinutes(slot.endTime);
+                  const duration = endMin - startMin;
+                  const gridStartMin = 7 * 60;
+
+                  const top = ((startMin - gridStartMin) / 60) * 50;
+                  const height = (duration / 60) * 50;
+                  const originalIndex = slots.indexOf(slot);
+
+                  return (
+                    <div
+                      key={idx}
+                      className="v-slot"
+                      style={{ top: `${top}px`, height: `${height}px` }}
+                      onClick={(e) => handleSlotClick(e, originalIndex)}
+                    >
+                      <span>{formatTime12(slot.startTime)} - {formatTime12(slot.endTime)}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ))}
         </div>
-        {DAYS.map((day, dayIndex) => (
-          <div key={day} className="v-day-col">
-            <div className="v-header-cell">{day}</div>
-            <div className="v-day-content">
-              {HOURS.map(h => (
-                <div
-                  key={h}
-                  className="v-hour-cell"
-                  onClick={() => handleGridClick(dayIndex, h)}
-                />
-              ))}
-
-              {/* Ghost Events - Real Calendar Events */}
-              {calendarEvents.filter(e => e.dayOfWeek === dayIndex).map((evt, idx) => {
-                const startDate = new Date(evt.startTime);
-                const endDate = new Date(evt.endTime);
-
-                const startMin = startDate.getHours() * 60 + startDate.getMinutes();
-                const endMin = endDate.getHours() * 60 + endDate.getMinutes();
-
-                const gridStartMin = 7 * 60; // 7 AM
-
-                // Simple clipping for display
-                if (endMin <= gridStartMin) return null;
-
-                const effectiveStart = Math.max(startMin, gridStartMin);
-                const effectiveEnd = endMin; // Allow overflow visually (hidden by container) or clip?
-                // Let's clip visual height if it goes beyond 9PM + extra
-
-                const duration = effectiveEnd - effectiveStart;
-                const top = ((effectiveStart - gridStartMin) / 60) * 50;
-                const height = (duration / 60) * 50;
-
-                return (
-                  <div
-                    key={`evt-${idx}`}
-                    className="v-event-ghost"
-                    style={{
-                      top: `${top}px`,
-                      height: `${height}px`,
-                      backgroundColor: evt.color || '#666'
-                    }}
-                    title={evt.title}
-                  >
-                    <span className="event-title">{evt.title || 'Busy'}</span>
-                  </div>
-                );
-              })}
-
-              {/* Availabilty Slots */}
-              {slots.filter(s => s.dayOfWeek === dayIndex).map((slot, idx) => {
-                const startMin = timeToMinutes(slot.startTime);
-                const endMin = timeToMinutes(slot.endTime);
-                const duration = endMin - startMin;
-                const gridStartMin = 7 * 60;
-
-                const top = ((startMin - gridStartMin) / 60) * 50;
-                const height = (duration / 60) * 50;
-                const originalIndex = slots.indexOf(slot);
-
-                return (
-                  <div
-                    key={idx}
-                    className="v-slot"
-                    style={{ top: `${top}px`, height: `${height}px` }}
-                    onClick={(e) => handleSlotClick(e, originalIndex)}
-                  >
-                    <span>{formatTime12(slot.startTime)} - {formatTime12(slot.endTime)}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
+      )}
 
       {/* Confirmation Modal */}
       {pendingSlot && (
@@ -373,27 +495,32 @@ export default function AvailabilityPage() {
           <div className="edit-popover">
             <div className="popover-header">
               <h3>Edit Availability</h3>
-              <button className="icon-btn" onClick={() => setEditingSlot(null)}><X size={16} /></button>
+              <button className="icon-btn" onClick={() => setEditingSlot(null)}><X size={18} /></button>
             </div>
-
             <div className="popover-body">
-              <label>Start</label>
-              <select
-                value={editingSlot.slot.startTime}
-                onChange={(e) => updateSlot(editingSlot.index, { startTime: e.target.value })}
-              >
-                {timeOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
-
-              <label>End</label>
-              <select
-                value={editingSlot.slot.endTime}
-                onChange={(e) => updateSlot(editingSlot.index, { endTime: e.target.value })}
-              >
-                {timeOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
+              <label>Start Time</label>
+              <div className="select-wrapper">
+                <select
+                  value={editingSlot.slot.startTime}
+                  onChange={(e) => updateSlot(editingSlot.index, { startTime: e.target.value })}
+                >
+                  {timeOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+              <label>End Time</label>
+              <div className="select-wrapper">
+                <select
+                  value={editingSlot.slot.endTime}
+                  onChange={(e) => updateSlot(editingSlot.index, { endTime: e.target.value })}
+                >
+                  {timeOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-
             <div className="popover-footer">
               <button className="btn btn-danger" onClick={() => deleteSlot(editingSlot.index)}>
                 <Trash2 size={16} /> Remove
@@ -440,6 +567,71 @@ export default function AvailabilityPage() {
             margin-bottom: 0.5rem;
         }
 
+        .nav-controls {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .view-toggle {
+            display: flex;
+            background: var(--color-bg-secondary);
+            padding: 4px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--color-border);
+        }
+
+        .view-toggle button {
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            color: var(--color-text-secondary);
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .view-toggle button.active {
+            background: var(--color-bg-main);
+            color: var(--color-text-main);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            font-weight: 600;
+        }
+
+        .date-nav {
+            display: flex;
+            align-items: center;
+            background: var(--color-bg-secondary);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--color-border);
+            padding: 2px;
+        }
+
+        .nav-btn {
+            background: transparent;
+            border: none;
+            padding: 6px;
+            color: var(--color-text-main);
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .nav-btn:hover { background: rgba(0,0,0,0.05); }
+        .today-btn { 
+            font-size: 0.85rem; 
+            font-weight: 600; 
+            padding: 0 12px;
+        }
+
+        .current-date-label {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--color-text-main);
+            min-width: 150px;
+        }
+
         .link-description {
             color: var(--color-text-secondary);
             font-size: 1rem;
@@ -482,87 +674,85 @@ export default function AvailabilityPage() {
           min-width: 100px;
         }
         .v-day-col:last-child { border-right: none; }
+
+        .v-day-col.is-today .v-header-cell {
+            background: var(--color-bg-highlight);
+        }
         
         .v-header-cell {
-          height: 40px;
+          height: 50px; /* Taller for date number */
           display: flex;
           align-items: center;
           justify-content: center;
+          background: var(--color-bg-secondary);
           border-bottom: 1px solid var(--color-border);
           font-weight: 600;
-          background: var(--color-bg-secondary);
           color: var(--color-text-secondary);
           font-size: 0.9rem;
         }
         
+        .v-header-cell.flex-col {
+            flex-direction: column;
+            gap: 2px;
+            line-height: 1.2;
+        }
+
+        .v-day-content {
+          position: relative;
+        }
+        
         .v-time-cell {
           height: 50px;
+          border-bottom: 1px solid var(--color-border);
           display: flex;
-          align-items: flex-start;
+          align-items: start;
           justify-content: center;
           padding-top: 4px;
           font-size: 0.75rem;
-          color: var(--color-text-light);
-          border-bottom: 1px solid rgba(0,0,0,0.05);
-        }
-        
-        .v-day-content {
-          position: relative;
-          height: ${HOURS.length * 50}px;
+          color: var(--color-text-tertiary);
         }
         
         .v-hour-cell {
           height: 50px;
           border-bottom: 1px solid var(--color-border);
           cursor: pointer;
+          transition: background 0.2s;
         }
         .v-hour-cell:hover {
-          background: rgba(var(--color-accent-rgb), 0.05);
+          background: var(--color-bg-secondary);
         }
         
-        /* Ghost Events */
-        .v-event-ghost {
-            position: absolute;
-            left: 4px;
-            right: 4px;
-            border-radius: var(--radius-sm);
-            opacity: 0.4;
-            pointer-events: none; /* Make sure clicks pass through to grid */
-            z-index: 5;
-            padding: 2px;
-            font-size: 0.7rem;
-            color: white;
-            overflow: hidden;
-        }
-        .event-title {
-            display: block;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
         .v-slot {
           position: absolute;
-          left: 4px;
-          right: 4px;
-          background: var(--color-accent);
+          left: 4px; right: 4px;
+          background: var(--color-primary);
+          border-radius: 4px;
+          padding: 4px;
           color: white;
-          border-radius: var(--radius-sm);
           font-size: 0.75rem;
-          display: flex;
-          align-items: center;
-          justify-content: center;
           cursor: pointer;
-          border: 1px solid white;
-          box-shadow: 0 1px 2px rgba(0,0,0,0.2);
           overflow: hidden;
           z-index: 10;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .v-event-ghost {
+            position: absolute;
+            left: 2px; right: 2px;
+            border-radius: 4px;
+            padding: 2px 4px;
+            font-size: 0.7rem;
+            color: white;
+            z-index: 5;
+            opacity: 0.4;
+            pointer-events: none;
+            overflow: hidden;
         }
         
         .popover-backdrop {
           position: fixed;
           top: 0; left: 0; right: 0; bottom: 0;
-          background: rgba(0,0,0,0.3);
+          background: rgba(0,0,0,0.2);
           z-index: 90;
         }
         
@@ -607,6 +797,10 @@ export default function AvailabilityPage() {
         .icon-btn {
           padding: 4px;
           border-radius: 50%;
+          border: none;
+          background: transparent;
+          cursor: pointer;
+          color: var(--color-text-secondary);
         }
         .icon-btn:hover { background: var(--color-bg-secondary); }
         
@@ -643,6 +837,92 @@ export default function AvailabilityPage() {
             justify-content: center;
             gap: 1rem;
         }
+
+        .select-wrapper select {
+           width: 100%;
+           padding: 8px;
+           border: 1px solid var(--color-border);
+           border-radius: var(--radius-md);
+           background-color: var(--color-bg-main);
+           color: var(--color-text-main);
+        }
+
+        /* Month Grid */
+        .month-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            background: var(--color-border);
+            gap: 1px;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .month-header-cell {
+            background: var(--color-bg-secondary);
+            padding: 8px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--color-text-secondary);
+        }
+
+        .month-cell {
+            background: var(--color-bg-main);
+            min-height: 100px;
+            padding: 4px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .month-cell.other-month {
+            background: var(--color-bg-secondary); 
+            background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.02) 10px, rgba(0,0,0,0.02) 20px);
+        }
+        
+        .month-cell.is-today {
+           background: var(--color-bg-highlight);
+        }
+
+        .month-date-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--color-text-secondary);
+            margin-bottom: 4px;
+            text-align: right;
+        }
+
+        .is-today .month-date-label {
+            color: var(--color-primary);
+        }
+
+        .month-cell-content {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            flex: 1;
+        }
+
+        .month-slot-bar {
+            font-size: 0.7rem;
+            background: #e0f2fe; /* Light Blue */
+            color: #0369a1;
+            padding: 2px 4px;
+            border-radius: 3px;
+            display: flex; align-items: center; gap: 4px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .slot-dot { width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+
+        .month-event-bar {
+            font-size: 0.7rem;
+            background: var(--color-bg-secondary);
+            color: var(--color-text-secondary);
+            padding: 1px 4px;
+            border-radius: 2px;
+             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .more-events { font-size: 0.7rem; color: var(--color-text-tertiary); padding-left: 4px; }
       `}</style>
     </div>
   );
