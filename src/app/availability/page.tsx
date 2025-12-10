@@ -86,7 +86,19 @@ export default function AvailabilityPage() {
 
     const handleSlotClick = (e: React.MouseEvent, index: number) => {
         e.stopPropagation(); // Prevent grid click
-        setEditingSlot({ slot: slots[index], index });
+
+        // 3-Click Rule Implementation:
+        // 1. First Click (on empty grid) -> Add (handled by handleGridClick)
+        // 2. Second Click (on slot) -> Edit (Open Popover)
+        // 3. Third Click (on slot while editing) -> Remove
+
+        if (editingSlot && editingSlot.index === index) {
+            // Third Click: Remove
+            deleteSlot(index);
+        } else {
+            // Second Click: Edit
+            setEditingSlot({ slot: slots[index], index });
+        }
     };
 
     const updateSlot = (index: number, updates: Partial<AvailabilitySlot>) => {

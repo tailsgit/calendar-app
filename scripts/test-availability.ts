@@ -26,15 +26,17 @@ async function testAvailability() {
     });
 
     // Create default scheme
+    /* 
     await prisma.availability.createMany({
         data: weekDays.map(day => ({
-            userId: user.id,
-            dayOfWeek: day,
-            startTime: '09:00',
-            endTime: '17:00',
-            isEnabled: true
+             userId: user.id,
+             dayOfWeek: day,
+             startTime: '09:00',
+             endTime: '17:00',
+             isEnabled: true 
         }))
     });
+    */
 
     // 3. Define Test Range (Tomorrow)
     const tomorrow = addDays(new Date(), 1);
