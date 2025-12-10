@@ -5,12 +5,22 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Save, Trash2, X, Link as LinkIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { startOfWeek, endOfWeek, addDays, getDay } from 'date-fns';
 
 interface AvailabilitySlot {
-    id?: string;
-    dayOfWeek: number;
-    startTime: string;
-    endTime: string;
+  id?: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+}
+
+interface CalendarEvent {
+  id: string;
+  title: string;
+  startTime: string; // ISO string
+  endTime: string;   // ISO string
+  dayOfWeek?: number; // Calculated
+  color?: string;
 }
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -18,258 +28,339 @@ const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 7 AM - 9 PM
 
 // Helper to format HH:MM to 12-hour
 const formatTime12 = (time: string) => {
-    const [h, m] = time.split(':').map(Number);
-    const ampm = h < 12 ? 'AM' : 'PM';
-    const hour = h === 0 ? 12 : h > 12 ? h - 12 : h;
-    return `${hour}:${m.toString().padStart(2, '0')} ${ampm}`;
+  const [h, m] = time.split(':').map(Number);
+  const ampm = h < 12 ? 'AM' : 'PM';
+  const hour = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${hour}:${m.toString().padStart(2, '0')} ${ampm}`;
 };
 
 // Helper to convert time string to minutes
 const timeToMinutes = (time: string) => {
-    const [h, m] = time.split(':').map(Number);
-    return h * 60 + m;
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
 };
 
 // Helper to convert minutes to time string
 const minutesToTime = (mins: number) => {
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 };
 
 export default function AvailabilityPage() {
-    const router = useRouter();
-    const { data: session } = useSession();
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
-    const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
-    const [editingSlot, setEditingSlot] = useState<{ slot: AvailabilitySlot, index: number } | null>(null);
+  const router = useRouter();
+  const { data: session } = useSession();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  const [editingSlot, setEditingSlot] = useState<{ slot: AvailabilitySlot, index: number } | null>(null);
 
-    useEffect(() => {
-        fetchAvailability();
-    }, []);
+  useEffect(() => {
+    fetchAvailability();
+    fetchCalendarEvents();
+  }, []);
 
-    const fetchAvailability = async () => {
-        try {
-            const res = await fetch('/api/user/availability');
-            if (res.ok) {
-                const data = await res.json();
-                setSlots(data.map((s: any) => ({
-                    id: s.id,
-                    dayOfWeek: s.dayOfWeek,
-                    startTime: s.startTime,
-                    endTime: s.endTime
-                })));
-            } else {
-                toast.error('Failed to load availability');
-            }
-        } catch (error) {
-            console.error(error);
-            toast.error('Error loading data');
-        } finally {
-            setLoading(false);
-        }
-    };
+  const fetchAvailability = async () => {
+    try {
+      const res = await fetch('/api/user/availability');
+      if (res.ok) {
+        const data = await res.json();
+        setSlots(data.map((s: any) => ({
+          id: s.id,
+          dayOfWeek: s.dayOfWeek,
+          startTime: s.startTime,
+          endTime: s.endTime
+        })));
+      } else {
+        toast.error('Failed to load availability');
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('Error loading data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const handleCopyLink = () => {
-        if (!session?.user?.id) {
-            toast.error('User ID not found');
-            return;
-        }
-        const link = `${window.location.origin}/user/${session.user.id}`;
-        navigator.clipboard.writeText(link);
-        toast.success('Booking link copied to clipboard!');
-    };
+  const fetchCalendarEvents = async () => {
+    const now = new Date();
+    const start = startOfWeek(now, { weekStartsOn: 0 }); // Sunday start to match grid
+    const end = endOfWeek(now, { weekStartsOn: 0 });
 
-    const handleGridClick = (dayIndex: number, hour: number) => {
-        const startTime = `${hour.toString().padStart(2, '0')}:00`;
-        const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`;
+    try {
+      // Fetch local
+      const resLocal = await fetch(`/api/events?start=${start.toISOString()}&end=${end.toISOString()}`);
+      let localEvents = [];
+      if (resLocal.ok) localEvents = await resLocal.json();
 
-        // Check for overlap
-        const newStart = timeToMinutes(startTime);
-        const newEnd = timeToMinutes(endTime);
+      // Fetch Google
+      let googleEvents = [];
+      try {
+        const resGoogle = await fetch(`/api/events/google?start=${start.toISOString()}&end=${end.toISOString()}`);
+        if (resGoogle.ok) googleEvents = await resGoogle.json();
+      } catch (e) { }
 
-        const hasOverlap = slots.some(s => {
-            if (s.dayOfWeek !== dayIndex) return false;
-            const sStart = timeToMinutes(s.startTime);
-            const sEnd = timeToMinutes(s.endTime);
-            return (newStart < sEnd && newEnd > sStart);
-        });
+      // Fetch Outlook
+      let outlookEvents = [];
+      try {
+        const resOutlook = await fetch(`/api/events/outlook?start=${start.toISOString()}&end=${end.toISOString()}`);
+        if (resOutlook.ok) outlookEvents = await resOutlook.json();
+      } catch (e) { }
 
-        if (hasOverlap) return;
+      const merged = [
+        ...localEvents,
+        ...googleEvents.map((e: any) => ({ ...e, startTime: e.start, endTime: e.end, color: '#4285F4' })),
+        ...outlookEvents.map((e: any) => ({ ...e, startTime: e.start, endTime: e.end, color: '#0078D4' }))
+      ].map((e: any) => ({
+        ...e,
+        dayOfWeek: new Date(e.startTime).getDay()
+      }));
 
-        const newSlot = { dayOfWeek: dayIndex, startTime, endTime };
-        setSlots([...slots, newSlot]);
-    };
+      setCalendarEvents(merged);
 
-    const handleSlotClick = (e: React.MouseEvent, index: number) => {
-        e.stopPropagation();
+    } catch (error) {
+      console.error('Error fetching events', error);
+    }
+  };
 
-        // 3-Click Rule Implementation:
-        // 1. First Click -> Add
-        // 2. Second Click -> Edit
-        // 3. Third Click -> Remove
-        if (editingSlot && editingSlot.index === index) {
-            deleteSlot(index);
-        } else {
-            setEditingSlot({ slot: slots[index], index });
-        }
-    };
+  const handleCopyLink = () => {
+    if (!session?.user?.id) {
+      toast.error('User ID not found');
+      return;
+    }
+    const link = `${window.location.origin}/user/${session.user.id}`;
+    navigator.clipboard.writeText(link);
+    toast.success('Booking link copied to clipboard!');
+  };
 
-    const updateSlot = (index: number, updates: Partial<AvailabilitySlot>) => {
-        const updated = [...slots];
-        updated[index] = { ...updated[index], ...updates };
-        setSlots(updated);
-        setEditingSlot({ slot: updated[index], index });
-    };
+  const handleGridClick = (dayIndex: number, hour: number) => {
+    const startTime = `${hour.toString().padStart(2, '0')}:00`;
+    const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`;
 
-    const deleteSlot = (index: number) => {
-        const updated = slots.filter((_, i) => i !== index);
-        setSlots(updated);
-        setEditingSlot(null);
-    };
+    // Check for overlap
+    const newStart = timeToMinutes(startTime);
+    const newEnd = timeToMinutes(endTime);
 
-    const handleSave = async () => {
-        setSaving(true);
-        try {
-            const res = await fetch('/api/user/availability', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ availability: slots })
-            });
-
-            if (res.ok) {
-                toast.success('Availability saved!');
-                router.refresh();
-            } else {
-                throw new Error('Failed to save');
-            }
-        } catch (error) {
-            toast.error('Error saving availability');
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    // Generate time options for select
-    const timeOptions = Array.from({ length: 48 }).map((_, i) => {
-        const h = Math.floor(i / 2);
-        const m = (i % 2) * 30;
-        const time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-        const label = `${h === 0 ? 12 : h > 12 ? h - 12 : h}:${m === 0 ? '00' : '30'} ${h < 12 ? 'AM' : 'PM'}`;
-        return { value: time, label };
+    const hasOverlap = slots.some(s => {
+      if (s.dayOfWeek !== dayIndex) return false;
+      const sStart = timeToMinutes(s.startTime);
+      const sEnd = timeToMinutes(s.endTime);
+      return (newStart < sEnd && newEnd > sStart);
     });
 
-    if (loading) return <div className="p-8 text-center text-neutral-500">Loading schedule...</div>;
+    if (hasOverlap) return;
 
-    return (
-        <div className="availability-page container">
-            <div className="header">
-                <div className="header-top">
-                    <h1>Booking</h1>
-                    <button className="btn btn-secondary" onClick={handleCopyLink} title="Generate Booking Link">
-                        <LinkIcon size={16} className="mr-2" /> Copy Link
-                    </button>
-                </div>
-                <p className="link-description">
-                    Share this link to let others book time with you. They can sign in and schedule meetings during your available slots.
-                </p>
-                <p className="grid-help">
-                    Click on the grid to add availability. Click an existing slot to edit.
-                </p>
+    const newSlot = { dayOfWeek: dayIndex, startTime, endTime };
+    setSlots([...slots, newSlot]);
+  };
+
+  const handleSlotClick = (e: React.MouseEvent, index: number) => {
+    e.stopPropagation();
+
+    // 3-Click Rule Implementation:
+    // 1. First Click -> Add
+    // 2. Second Click -> Edit
+    // 3. Third Click -> Remove
+    if (editingSlot && editingSlot.index === index) {
+      deleteSlot(index);
+    } else {
+      setEditingSlot({ slot: slots[index], index });
+    }
+  };
+
+  const updateSlot = (index: number, updates: Partial<AvailabilitySlot>) => {
+    const updated = [...slots];
+    updated[index] = { ...updated[index], ...updates };
+    setSlots(updated);
+    setEditingSlot({ slot: updated[index], index });
+  };
+
+  const deleteSlot = (index: number) => {
+    const updated = slots.filter((_, i) => i !== index);
+    setSlots(updated);
+    setEditingSlot(null);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/user/availability', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ availability: slots })
+      });
+
+      if (res.ok) {
+        toast.success('Availability saved!');
+        router.refresh();
+      } else {
+        throw new Error('Failed to save');
+      }
+    } catch (error) {
+      toast.error('Error saving availability');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Generate time options for select
+  const timeOptions = Array.from({ length: 48 }).map((_, i) => {
+    const h = Math.floor(i / 2);
+    const m = (i % 2) * 30;
+    const time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+    const label = `${h === 0 ? 12 : h > 12 ? h - 12 : h}:${m === 0 ? '00' : '30'} ${h < 12 ? 'AM' : 'PM'}`;
+    return { value: time, label };
+  });
+
+  if (loading) return <div className="p-8 text-center text-neutral-500">Loading schedule...</div>;
+
+  return (
+    <div className="availability-page container">
+      <div className="header">
+        <div className="header-top">
+          <h1>Booking</h1>
+          <button className="btn btn-secondary" onClick={handleCopyLink} title="Generate Booking Link">
+            <LinkIcon size={16} className="mr-2" /> Copy Link
+          </button>
+        </div>
+        <p className="link-description">
+          Share this link to let others book time with you. They can sign in and schedule meetings during your available slots.
+        </p>
+        <p className="grid-help">
+          Click on the grid to add availability. Click an existing slot to edit.
+        </p>
+      </div>
+
+      <div className="visual-grid-container">
+        <div className="v-time-col">
+          <div className="v-header-cell"></div>
+          {HOURS.map(h => (
+            <div key={h} className="v-time-cell">
+              {h > 12 ? h - 12 : h} {h >= 12 ? 'PM' : 'AM'}
+            </div>
+          ))}
+        </div>
+        {DAYS.map((day, dayIndex) => (
+          <div key={day} className="v-day-col">
+            <div className="v-header-cell">{day}</div>
+            <div className="v-day-content">
+              {HOURS.map(h => (
+                <div
+                  key={h}
+                  className="v-hour-cell"
+                  onClick={() => handleGridClick(dayIndex, h)}
+                />
+              ))}
+
+              {/* Ghost Events - Real Calendar Events */}
+              {calendarEvents.filter(e => e.dayOfWeek === dayIndex).map((evt, idx) => {
+                const startDate = new Date(evt.startTime);
+                const endDate = new Date(evt.endTime);
+
+                const startMin = startDate.getHours() * 60 + startDate.getMinutes();
+                const endMin = endDate.getHours() * 60 + endDate.getMinutes();
+
+                const gridStartMin = 7 * 60; // 7 AM
+
+                // Simple clipping for display
+                if (endMin <= gridStartMin) return null;
+
+                const effectiveStart = Math.max(startMin, gridStartMin);
+                const effectiveEnd = endMin; // Allow overflow visually (hidden by container) or clip?
+                // Let's clip visual height if it goes beyond 9PM + extra
+
+                const duration = effectiveEnd - effectiveStart;
+                const top = ((effectiveStart - gridStartMin) / 60) * 50;
+                const height = (duration / 60) * 50;
+
+                return (
+                  <div
+                    key={`evt-${idx}`}
+                    className="v-event-ghost"
+                    style={{
+                      top: `${top}px`,
+                      height: `${height}px`,
+                      backgroundColor: evt.color || '#666'
+                    }}
+                    title={evt.title}
+                  >
+                    <span className="event-title">{evt.title || 'Busy'}</span>
+                  </div>
+                );
+              })}
+
+              {/* Availabilty Slots */}
+              {slots.filter(s => s.dayOfWeek === dayIndex).map((slot, idx) => {
+                const startMin = timeToMinutes(slot.startTime);
+                const endMin = timeToMinutes(slot.endTime);
+                const duration = endMin - startMin;
+                const gridStartMin = 7 * 60;
+
+                const top = ((startMin - gridStartMin) / 60) * 50;
+                const height = (duration / 60) * 50;
+                const originalIndex = slots.indexOf(slot);
+
+                return (
+                  <div
+                    key={idx}
+                    className="v-slot"
+                    style={{ top: `${top}px`, height: `${height}px` }}
+                    onClick={(e) => handleSlotClick(e, originalIndex)}
+                  >
+                    <span>{formatTime12(slot.startTime)} - {formatTime12(slot.endTime)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {editingSlot && (
+        <>
+          <div className="popover-backdrop" onClick={() => setEditingSlot(null)} />
+          <div className="edit-popover">
+            <div className="popover-header">
+              <h3>Edit Availability</h3>
+              <button className="icon-btn" onClick={() => setEditingSlot(null)}><X size={16} /></button>
             </div>
 
-            <div className="visual-grid-container">
-                <div className="v-time-col">
-                    <div className="v-header-cell"></div>
-                    {HOURS.map(h => (
-                        <div key={h} className="v-time-cell">
-                            {h > 12 ? h - 12 : h} {h >= 12 ? 'PM' : 'AM'}
-                        </div>
-                    ))}
-                </div>
-                {DAYS.map((day, dayIndex) => (
-                    <div key={day} className="v-day-col">
-                        <div className="v-header-cell">{day}</div>
-                        <div className="v-day-content">
-                            {HOURS.map(h => (
-                                <div
-                                    key={h}
-                                    className="v-hour-cell"
-                                    onClick={() => handleGridClick(dayIndex, h)}
-                                />
-                            ))}
+            <div className="popover-body">
+              <label>Start</label>
+              <select
+                value={editingSlot.slot.startTime}
+                onChange={(e) => updateSlot(editingSlot.index, { startTime: e.target.value })}
+              >
+                {timeOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
 
-                            {slots.filter(s => s.dayOfWeek === dayIndex).map((slot, idx) => {
-                                const startMin = timeToMinutes(slot.startTime);
-                                const endMin = timeToMinutes(slot.endTime);
-                                const duration = endMin - startMin;
-                                const gridStartMin = 7 * 60;
-
-                                const top = ((startMin - gridStartMin) / 60) * 50;
-                                const height = (duration / 60) * 50;
-                                const originalIndex = slots.indexOf(slot);
-
-                                return (
-                                    <div
-                                        key={idx}
-                                        className="v-slot"
-                                        style={{ top: `${top}px`, height: `${height}px` }}
-                                        onClick={(e) => handleSlotClick(e, originalIndex)}
-                                    >
-                                        <span>{formatTime12(slot.startTime)} - {formatTime12(slot.endTime)}</span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                ))}
+              <label>End</label>
+              <select
+                value={editingSlot.slot.endTime}
+                onChange={(e) => updateSlot(editingSlot.index, { endTime: e.target.value })}
+              >
+                {timeOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
             </div>
 
-            {editingSlot && (
-                <>
-                    <div className="popover-backdrop" onClick={() => setEditingSlot(null)} />
-                    <div className="edit-popover">
-                        <div className="popover-header">
-                            <h3>Edit Availability</h3>
-                            <button className="icon-btn" onClick={() => setEditingSlot(null)}><X size={16} /></button>
-                        </div>
-
-                        <div className="popover-body">
-                            <label>Start</label>
-                            <select
-                                value={editingSlot.slot.startTime}
-                                onChange={(e) => updateSlot(editingSlot.index, { startTime: e.target.value })}
-                            >
-                                {timeOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                            </select>
-
-                            <label>End</label>
-                            <select
-                                value={editingSlot.slot.endTime}
-                                onChange={(e) => updateSlot(editingSlot.index, { endTime: e.target.value })}
-                            >
-                                {timeOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                            </select>
-                        </div>
-
-                        <div className="popover-footer">
-                            <button className="btn btn-danger" onClick={() => deleteSlot(editingSlot.index)}>
-                                <Trash2 size={16} /> Remove
-                            </button>
-                            <button className="btn btn-primary" onClick={() => setEditingSlot(null)}>Done</button>
-                        </div>
-                    </div>
-                </>
-            )}
-
-            <div className="actions-bar">
-                <button className="btn btn-primary save-btn" onClick={handleSave} disabled={saving}>
-                    {saving ? 'Saving...' : <><Save size={18} /> Save Changes</>}
-                </button>
+            <div className="popover-footer">
+              <button className="btn btn-danger" onClick={() => deleteSlot(editingSlot.index)}>
+                <Trash2 size={16} /> Remove
+              </button>
+              <button className="btn btn-primary" onClick={() => setEditingSlot(null)}>Done</button>
             </div>
+          </div>
+        </>
+      )}
 
-            <style jsx>{`
+      <div className="actions-bar">
+        <button className="btn btn-primary save-btn" onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving...' : <><Save size={18} /> Save Changes</>}
+        </button>
+      </div>
+
+      <style jsx>{`
         .availability-page {
           padding-bottom: 5rem;
         }
@@ -357,6 +448,27 @@ export default function AvailabilityPage() {
           background: rgba(var(--color-accent-rgb), 0.05);
         }
         
+        /* Ghost Events */
+        .v-event-ghost {
+            position: absolute;
+            left: 4px;
+            right: 4px;
+            border-radius: var(--radius-sm);
+            opacity: 0.4;
+            pointer-events: none; /* Make sure clicks pass through to grid */
+            z-index: 5;
+            padding: 2px;
+            font-size: 0.7rem;
+            color: white;
+            overflow: hidden;
+        }
+        .event-title {
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         .v-slot {
           position: absolute;
           left: 4px;
@@ -432,6 +544,6 @@ export default function AvailabilityPage() {
         }
         .btn-danger:hover { background: rgba(239, 68, 68, 0.2); }
       `}</style>
-        </div>
-    );
+    </div>
+  );
 }
