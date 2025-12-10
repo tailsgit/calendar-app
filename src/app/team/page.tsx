@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import UserCalendarColumn from '@/components/team/UserCalendarColumn';
 import SmartSuggestionsPanel from '@/components/smart-scheduling/SmartSuggestionsPanel';
 import TeamHeatmap from '@/components/team/TeamHeatmap';
+import UserMonthCalendar from '@/components/team/UserMonthCalendar';
 
 interface User {
   id: string;
@@ -145,16 +146,7 @@ function TeamCalendarContent() {
 
   // Month Grid Gen
   const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-  const monthGridStart = startOfWeek(monthStart, { weekStartsOn: 1 }); // Monday start for team usually
-  const monthGridEnd = endOfWeek(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0), { weekStartsOn: 1 });
-
-  const monthDays = [];
-  let day = monthGridStart;
-  while (day <= monthGridEnd) {
-    monthDays.push(day);
-    day = addDays(day, 1);
-  }
-
+  // Calculate dates for grid: handled by sub-components now
   const columnWidth = selectedUsers.length > 0 ? 100 / selectedUsers.length : 100;
 
   // Custom slot click handler for reschedule mode
@@ -297,45 +289,17 @@ function TeamCalendarContent() {
               <TeamHeatmap selectedUsers={selectedUsers} currentDate={currentDate} timeView={timeView} />
             </div>
           ) : timeView === 'month' ? (
-            <div className="month-grid-container p-4 overflow-y-auto h-full">
-              {/* ... Month View Implementation ... */}
-              <div className="month-grid">
-                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
-                  <div key={d} className="month-header-cell">{d}</div>
+            <div className="month-columns-container h-full overflow-x-auto">
+              <div className="flex h-full gap-4 p-4 min-w-full w-fit">
+                {selectedUsers.map(user => (
+                  <div key={user.id} className="flex-1 min-w-[350px] max-w-[500px] h-full">
+                    <UserMonthCalendar
+                      user={user}
+                      events={userEvents[user.id] || []}
+                      currentDate={currentDate}
+                    />
+                  </div>
                 ))}
-                {monthDays.map((date, idx) => {
-                  const isCurrentMonth = date.getMonth() === currentDate.getMonth();
-                  const isToday = isSameDay(date, new Date());
-
-                  // Collect all events for this day
-                  const dayEvents: { event: Event, user: User }[] = [];
-                  selectedUsers.forEach(user => {
-                    const uEvents = userEvents[user.id] || [];
-                    uEvents.forEach(e => {
-                      if (isSameDay(new Date(e.startTime), date)) {
-                        dayEvents.push({ event: e, user });
-                      }
-                    });
-                  });
-
-                  // Sort by time
-                  dayEvents.sort((a, b) => new Date(a.event.startTime).getTime() - new Date(b.event.startTime).getTime());
-
-                  return (
-                    <div key={idx} className={`month-cell ${!isCurrentMonth ? 'other-month' : ''} ${isToday ? 'is-today' : ''}`}>
-                      <div className="month-date-label">{format(date, 'd')}</div>
-                      <div className="month-cell-content">
-                        {dayEvents.slice(0, 4).map(({ event, user }, i) => (
-                          <div key={i} className="month-team-event" title={`${user.name}: ${event.title}`} style={{ borderLeft: `3px solid ${event.color || '#666'}` }}>
-                            <span className="event-time">{format(new Date(event.startTime), 'HH:mm')}</span>
-                            <span className="event-title">{event.title}</span>
-                          </div>
-                        ))}
-                        {dayEvents.length > 4 && <div className="more-events">+{dayEvents.length - 4} more</div>}
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             </div>
           ) : (
@@ -428,63 +392,11 @@ function TeamCalendarContent() {
                     transition: width 0.3s ease;
                 }
 
-                .month-grid {
-                    display: grid;
-                    grid-template-columns: repeat(7, 1fr);
-                    background: var(--color-border);
-                    gap: 1px;
-                    border: 1px solid var(--color-border);
-                    border-radius: var(--radius-lg);
-                    overflow: hidden;
-                    width: 100%;
-                }
-                .month-header-cell {
-                    background: var(--color-bg-secondary);
-                    padding: 8px;
-                    text-align: center;
-                    font-weight: 600;
-                    color: var(--color-text-secondary);
-                }
-                .month-cell {
-                    background: var(--color-bg-main);
-                    min-height: 120px;
-                    padding: 4px;
-                    display: flex; flex-direction: column;
-                }
-                .month-cell.other-month {
-                    background: var(--color-bg-secondary);
-                    opacity: 0.6;
-                }
-                .month-cell.is-today {
-                    background: var(--color-bg-highlight);
-                }
-                .month-date-label {
-                    text-align: right; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 4px;
-                }
-                .month-cell-content {
-                    flex: 1; display: flex; flex-direction: column; gap: 2px;
-                }
-                .month-team-event {
-                    font-size: 0.7rem;
-                    background: var(--color-bg-secondary);
-                    padding: 2px 4px;
-                    border-radius: 2px;
-                    display: flex; align-items: center; gap: 4px;
-                    white-space: nowrap; overflow: hidden;
-                }
                 .vertical-divider {
                     width: 1px;
                     height: 24px;
                     background: var(--color-border);
                     margin: 0 4px;
-                }
-                .month-team-event {
-                    font-size: 0.75rem;
-                    background: transparent;
-                    padding: 1px 4px;
-                    display: flex; align-items: center; gap: 4px;
-                    white-space: nowrap; overflow: hidden;
-                    color: var(--color-text-main);
                 }
 
                 /* Header Controls Styling */
