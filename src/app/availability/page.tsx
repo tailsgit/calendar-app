@@ -258,9 +258,11 @@ export default function AvailabilityPage() {
         <p className="link-description">
           Share this link to let others book time with you. They can sign in and schedule meetings during your available slots.
         </p>
-        <p className="grid-help">
-          Click on the grid to add availability. Click an existing slot to edit.
-        </p>
+        <div className="help-text-container">
+          <p className="grid-help">
+            <strong>How to use:</strong> Click on the empty grid to add a slot. Click an existing slot to edit or remove it.
+          </p>
+        </div>
       </div>
 
       <div className="visual-grid-container">
@@ -411,29 +413,44 @@ export default function AvailabilityPage() {
           padding-bottom: 5rem;
         }
         
-        .header { margin-bottom: 2rem; }
+        .header { 
+            margin-bottom: 2rem; 
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--color-border);
+        }
 
         .header-top {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
         }
 
         .link-description {
             color: var(--color-text-secondary);
-            font-size: 0.95rem;
-            margin-bottom: 1rem;
-            max-width: 600px;
+            font-size: 1rem;
+            margin-bottom: 1.5rem;
+            max-width: 650px;
+            line-height: 1.5;
+        }
+
+        .help-text-container {
+            display: flex;
         }
 
         .grid-help {
             font-size: 0.85rem;
-            color: var(--color-text-light);
+            color: var(--color-text-secondary);
             background: var(--color-bg-secondary);
-            padding: 8px 12px;
+            padding: 10px 16px;
             border-radius: var(--radius-md);
             display: inline-block;
+            border: 1px solid var(--color-border);
         }
         
         .visual-grid-container {
