@@ -143,73 +143,7 @@ export default function AvailabilityPage() {
                 <p>Click on the grid to add availability. Click slot to edit.</p>
             </div>
 
-            <div className="calendar-grid">
-                {/* Header Row */}
-                <div className="time-col-header"></div>
-                {DAYS.map((day, i) => (
-                    <div key={day} className="day-header">{day}</div>
-                ))}
-
-                {/* Time Rows */}
-                {HOURS.map(hour => (
-                    <div key={`row-${hour}`} className="grid-row">
-                        <div className="time-label">
-                            {hour > 12 ? hour - 12 : hour} {hour < 12 ? 'AM' : 'PM'}
-                        </div>
-                        {DAYS.map((_, dayIndex) => (
-                            <div
-                                key={`${dayIndex}-${hour}`}
-                                className="grid-cell"
-                                onClick={() => handleGridClick(dayIndex, hour)}
-                            >
-                                {/* Render slots that belong to this cell? No, absolute positioning is better */}
-                            </div>
-                        ))}
-                    </div>
-                ))}
-
-                {/* Render Slots Absolute Over Grid */}
-                {slots.map((slot, i) => {
-                    const startMin = timeToMinutes(slot.startTime);
-                    const endMin = timeToMinutes(slot.endTime);
-                    const duration = endMin - startMin;
-                    const gridStartHour = 7; // Grid starts at 7 AM
-                    const topOffset = (startMin - (gridStartHour * 60)) * (60 / 60); // 60px per hour
-                    const height = duration * (60 / 60);
-
-                    // Only render if within grid range (7am-10pm)
-                    if (startMin < gridStartHour * 60) return null; // Too early?
-
-                    return (
-                        <div
-                            key={i}
-                            className="slot"
-                            style={{
-                                gridColumn: slot.dayOfWeek + 2, // +2 because 1st col is time labels
-                                top: `${topOffset + 40}px`, // +40 for header offset
-                                height: `${height}px`,
-                                position: 'absolute' // Actually, parent needs relative?
-                                // CSS Grid approach is better:
-                                // Grid wrapper needs to be relative.
-                                // Or use actual grid placement?
-                                // Let's rely on simple absolute relative to daily column
-                            }}
-                            onClick={(e) => handleSlotClick(e, i)}
-                        >
-                            <div className="slot-time">
-                                {slot.startTime} - {slot.endTime}
-                            </div>
-                        </div>
-                    );
-                })}
-
-                {/* 
-           Simpler approach: 
-           Render slots INSIDE correct columns if layout allows.
-           Actually, the "absolute over grid" relies on knowing strict pixels.
-           Let's rewrite grid to use columns container.
-        */}
-            </div>
+            {/* Visual Grid Container */}
 
             {/* Re-implementing Grid Structure to support slot positioning */}
             <div className="visual-grid-container">
