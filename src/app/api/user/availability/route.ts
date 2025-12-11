@@ -10,12 +10,46 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        // Fetch availability
         const availability = await prisma.availability.findMany({
             where: { userId: session.user.id },
             orderBy: { dayOfWeek: 'asc' },
         });
 
-        return NextResponse.json(availability);
+        // Ensure Booking Page Exists
+        let bookingPage = await prisma.bookingPage.findFirst({
+            where: { userId: session.user.id }
+        });
+
+        if (!bookingPage) {
+            const emailPrefix = session.user.email ? session.user.email.split('@')[0] : 'user';
+            const baseSlug = emailPrefix.replace(/[^a-zA-Z0-9-_]/g, '-').toLowerCase();
+            let slug = baseSlug;
+            let counter = 1;
+
+            // Simple uniqueness check (retry loop)
+            while (true) {
+                const existing = await prisma.bookingPage.findUnique({ where: { slug } });
+                if (!existing) break;
+                slug = `${baseSlug}-${counter}`;
+                counter++;
+            }
+
+            bookingPage = await prisma.bookingPage.create({
+                data: {
+                    userId: session.user.id,
+                    slug,
+                    title: `Meet with ${session.user.name || 'Me'}`,
+                    description: 'Please select a time that works for you.',
+                    duration: 30
+                }
+            });
+        }
+
+        return NextResponse.json({
+            slots: availability,
+            slug: bookingPage.slug
+        });
     } catch (error) {
         console.error('Error fetching availability:', error);
         return NextResponse.json({ error: 'Failed to fetch availability' }, { status: 500 });

@@ -6,33 +6,39 @@ import TopBar from "./TopBar";
 import { usePathname } from 'next/navigation';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const pathname = usePathname();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const pathname = usePathname();
 
-    // Close sidebar on route change (mobile)
-    useEffect(() => {
-        setIsSidebarOpen(false);
-    }, [pathname]);
+  // Close sidebar on route change (mobile)
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [pathname]);
 
-    return (
-        <div className="app-shell">
-            <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-            <TopBar onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
+  // Exclude AppShell for public routes
+  const isPublicRoute = pathname?.startsWith('/book') || pathname?.startsWith('/join');
+  if (isPublicRoute) {
+    return <>{children}</>;
+  }
 
-            {/* Mobile Overlay */}
-            {isSidebarOpen && (
-                <div
-                    className="sidebar-overlay"
-                    onClick={() => setIsSidebarOpen(false)}
-                    aria-hidden="true"
-                />
-            )}
+  return (
+    <div className="app-shell">
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <TopBar onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
 
-            <main className="main-content">
-                {children}
-            </main>
+      {/* Mobile Overlay */}
+      {isSidebarOpen && (
+        <div
+          className="sidebar-overlay"
+          onClick={() => setIsSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
 
-            <style jsx global>{`
+      <main className="main-content">
+        {children}
+      </main>
+
+      <style jsx global>{`
         /* Reuse Global Styles here or assume generic classes */
         .sidebar-overlay {
           position: fixed;
@@ -51,6 +57,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           }
         }
       `}</style>
-        </div>
-    );
+    </div>
+  );
 }
