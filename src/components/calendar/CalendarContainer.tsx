@@ -12,6 +12,7 @@ import Modal from '../ui/Modal';
 import NewMeetingForm from '../meeting/NewMeetingForm';
 import EventModal from './EventModal';
 import MeetingObjectDetail from '../meeting/MeetingObjectDetail';
+import { useClipboard } from '../../context/ClipboardContext';
 
 interface Event {
   id: string;
@@ -25,10 +26,13 @@ interface Event {
   status?: string;
   ownerId?: string;
   participants?: any[];
+  attendees?: string[];
 }
 
 export default function CalendarContainer() {
   const { data: session } = useSession();
+  const { clipboardEvents, copyEvent: globalCopyEvent, clearClipboard } = useClipboard();
+
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('week');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -36,11 +40,22 @@ export default function CalendarContainer() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [eventModalMode, setEventModalMode] = useState<'view' | 'edit' | 'create'>('view');
 
-  // Clipboard & Context Menu State
-  const [clipboardEvents, setClipboardEvents] = useState<Event[]>([]);
+  // Context Menu State
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; date: Date } | null>(null);
 
   const [selectedObject, setSelectedObject] = useState<Event | null>(null);
+
+  const fetchEvents = async () => {
+    try {
+      const res = await fetch('/api/events');
+      if (res.ok) {
+        const data = await res.json();
+        setEvents(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch events', error);
+    }
+  };
 
   const handleReschedule = async (event: Event, newStart: Date) => {
     // Calculate new end time based on duration
@@ -50,303 +65,219 @@ export default function CalendarContainer() {
     const updatedEvent = {
       ...event,
       startTime: newStart.toISOString(),
-      endTime: newEnd.toISOString()
+      endTime: newEnd.toISOString(),
     };
 
-    await handleSaveEvent(updatedEvent);
-    toast.success('Event moved successfully');
-  };
-
-  const fetchEvents = useCallback(async () => {
     try {
-      // Determine range based on current view/date
-      const start = new Date(currentDate);
-      start.setMonth(start.getMonth() - 1);
-      const end = new Date(currentDate);
-      end.setMonth(end.getMonth() + 1);
-
-      // Fetch local events
-      const resLocal = await fetch(`/api/events?start=${start.toISOString()}&end=${end.toISOString()}`);
-      let localEvents = [];
-      if (resLocal.ok) {
-        localEvents = await resLocal.json();
-      }
-
-      // Fetch Google events (parallel-ish, but isolated)
-      let googleEvents = [];
-      try {
-        const resGoogle = await fetch(`/api/events/google?start=${start.toISOString()}&end=${end.toISOString()}`);
-        if (resGoogle.ok) {
-          googleEvents = await resGoogle.json();
-        } else if (resGoogle.status === 401 || resGoogle.status === 404) {
-          // User not connected or unauthorized - ignore
-          googleEvents = [];
-        } else {
-          console.error('Google fetch failed', await resGoogle.text());
-        }
-      } catch (err) {
-        console.error('Google fetch error', err);
-      }
-
-      // Fetch Outlook events
-      let outlookEvents = [];
-      try {
-        const resOutlook = await fetch(`/api/events/outlook?start=${start.toISOString()}&end=${end.toISOString()}`);
-        if (resOutlook.ok) {
-          outlookEvents = await resOutlook.json();
-        } else if (resOutlook.status === 401 || resOutlook.status === 404) {
-          // User not connected or unauthorized - ignore
-          outlookEvents = [];
-        } else {
-          console.error('Outlook fetch failed', await resOutlook.text());
-        }
-      } catch (err) {
-        console.error('Outlook fetch error', err);
-      }
-
-      // Merge events
-      const mergedEvents = [
-        ...localEvents,
-        ...googleEvents.map((e: any) => ({
-          ...e,
-          startTime: e.start, // Map start -> startTime
-          endTime: e.end,     // Map end -> endTime
-          color: '#4285F4', // Google Blue
-          isExternal: true,
-          source: 'google'
-        })),
-        ...outlookEvents.map((e: any) => ({
-          ...e,
-          startTime: e.start, // Map start -> startTime
-          endTime: e.end,     // Map end -> endTime
-          color: '#0078D4', // Outlook Blue
-          isExternal: true,
-          source: 'outlook'
-        }))
-      ];
-
-      setEvents(mergedEvents);
+      await handleSaveEvent(updatedEvent);
+      toast.success('Event rescheduled');
     } catch (error) {
-      console.error('Failed to fetch events', error);
-      toast.error('Failed to sync calendar');
+      toast.error('Failed to reschedule');
     }
-  }, [currentDate]);
+  };
 
   useEffect(() => {
     fetchEvents();
-  }, [fetchEvents]);
+    const interval = setInterval(fetchEvents, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
-  const handleToday = () => setCurrentDate(new Date());
-
-  // --- Copy/Paste Logic ---
-  const handleDayContextMenu = (e: React.MouseEvent, date: Date) => {
-    // Only show if we have something to paste? Or always show "Paste" disabled?
-    // User requirement: "If the user right-clicks... show Paste". 
-    setContextMenu({ x: e.clientX, y: e.clientY, date });
-  };
-
-  const copyEvent = (event: Event) => {
-    setClipboardEvents([event]); // Current implementation supports single event copy, or multiple if we expanded UI
-    toast.success('Event copied to clipboard');
-  };
-
-  const pasteEventsToDate = async () => {
-    if (!contextMenu || clipboardEvents.length === 0) return;
-
-    const targetDate = contextMenu.date; // The day we right-clicked on
-    const promises = clipboardEvents.map(originalEvent => {
-      const originalStart = new Date(originalEvent.startTime);
-      const originalEnd = new Date(originalEvent.endTime);
-
-      // Create new Start Date: Target Year/Month/Day + Original Hours/Minutes
-      const newStart = new Date(targetDate);
-      newStart.setHours(originalStart.getHours(), originalStart.getMinutes(), 0, 0);
-
-      // Calculate Duration to find End Date
-      const durationMs = originalEnd.getTime() - originalStart.getTime();
-      const newEnd = new Date(newStart.getTime() + durationMs);
-
-      // Determine ID (New UUID or let backend handle it) -> Let backend handle by omitting ID
-      const { id, ...eventData } = originalEvent;
-
-      return handleSaveEvent({
-        ...eventData,
-        id: '', // Empty ID triggers POST
-        startTime: newStart.toISOString(),
-        endTime: newEnd.toISOString(),
-        title: `${originalEvent.title} (Copy)` // Optional: Append copy? User didn't ask, but helpful.
-      });
-    });
-
+  const handleSaveEvent = async (eventData: Event) => {
     try {
-      await Promise.all(promises);
-      toast.success(`Pasted ${clipboardEvents.length} events to ${format(targetDate, 'MMM d')}`);
-      fetchEvents();
-    } catch (error) {
-      console.error("Paste failed", error);
-      toast.error("Failed to paste events");
-    } finally {
-      setContextMenu(null);
-    }
-  };
+      const method = eventData.id ? 'PUT' : 'POST';
+      const url = eventData.id ? `/api/events/${eventData.id}` : '/api/events';
 
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(eventData),
+      });
 
-  const handleEventClick = (event: Event) => {
-    // Always open the unified EventModal
-    setSelectedEvent(event);
-    setEventModalMode('view');
-  };
-
-  const handleDateClick = (date: Date) => {
-    setCurrentDate(date);
-    setViewMode('day');
-  };
-
-  const handleRespond = async (id: string, action: 'accept' | 'decline') => {
-    // Note: id passed here is actually Event ID from EventModal
-    // We need to find the Participant record for ME in this event to respond correctly.
-    // The previous MeetingObjectDetail passed Meeting ID but expected Participant ID in API call?
-    // Let's re-verify logic. 
-    // CalendarContainer's handleRespond logic was:
-    /*
-    const myParticipant = selectedObject.participants?.find((p: any) => p.userId === user.id || p.email === user.email);
-    if (myParticipant) ... call API with myParticipant.id
-    */
-
-    // We need to adapt this to work with `selectedEvent` instead of `selectedObject`.
-    const targetEvent = selectedEvent || events.find(e => e.id === id); // `id` passed from Modal is event.id
-    const user = session?.user;
-
-    if (!user?.id || !targetEvent) return;
-
-    const myParticipant = targetEvent.participants?.find((p: any) => p.userId === user.id || p.email === user.email);
-
-    if (myParticipant) {
-      try {
-        const res = await fetch('/api/user/requests/respond', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: myParticipant.id,
-            type: 'event_invite',
-            action
-          })
-        });
-
-        if (res.ok) {
-          toast.success('Responded successfully');
-          setSelectedEvent(null); // Close modal
-          fetchEvents();
-        } else {
-          toast.error('Failed to respond');
-        }
-      } catch (e) {
-        console.error(e);
+      if (res.ok) {
+        await fetchEvents();
+        setIsModalOpen(false);
+        setSelectedEvent(null);
+        toast.success(eventData.id ? 'Event updated' : 'Event created');
+      } else {
+        throw new Error('Failed to save event');
       }
-    } else {
-      console.log('Not a participant, cannot respond directly');
-      toast.error('You are not a participant');
-    }
-  };
-
-  const handleSaveEvent = async (event: Event) => {
-    const method = event.id ? 'PUT' : 'POST';
-    const url = event.id ? `/api/events/${event.id}` : '/api/events';
-
-    const res = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(event),
-    });
-
-    if (res.ok) {
-      fetchEvents();
-    } else {
-      const data = await res.json();
-      throw new Error(data.error || 'Failed to save event');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to save event');
+      throw error;
     }
   };
 
   const handleDeleteEvent = async (eventId: string) => {
-    const res = await fetch(`/api/events/${eventId}`, { method: 'DELETE' });
-    if (res.ok) {
-      fetchEvents();
-    } else {
-      throw new Error('Failed to delete event');
+    try {
+      const res = await fetch(`/api/events/${eventId}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        setEvents(events.filter(e => e.id !== eventId));
+        setSelectedEvent(null);
+        toast.success('Event deleted');
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to delete event');
     }
   };
 
-  const [newMeetingInitialState, setNewMeetingInitialState] = useState<{ date?: string; time?: string }>({});
+  // New Meeting Form Initial State
+  const [newMeetingInitialState, setNewMeetingInitialState] = useState<{ date: Date | null, time: string }>({ date: null, time: '' });
 
-  const handleTimeSlotClick = (date: Date, hour: number) => {
+  const onSlotClick = (date: Date) => {
     setNewMeetingInitialState({
-      date: format(date, 'yyyy-MM-dd'),
-      time: `${String(hour).padStart(2, '0')}:00`
+      date: date,
+      time: format(date, 'HH:mm')
     });
     setIsModalOpen(true);
   };
 
+  const onEventClick = (event: any) => {
+    setSelectedEvent(event);
+    setEventModalMode('view');
+  };
+
+  const handleRespond = async (eventId: string, action: 'accept' | 'decline') => {
+    try {
+      const res = await fetch(`/api/events/${eventId}/respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+      if (res.ok) {
+        toast.success(`You ${action}ed the event`);
+        setSelectedEvent(null);
+        await fetchEvents();
+      }
+    } catch (e) {
+      toast.error('Failed to respond');
+    }
+  };
+
+  // Clipboard Functions
+  const handleCopyEvent = (event: Event) => {
+    globalCopyEvent(event);
+    // Optional: Close modal if open? context.copyEvent already toasts.
+  };
+
+  const handleDayContextMenu = (e: React.MouseEvent, date: Date) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, date });
+  };
+
+  const pasteEventsToDate = async () => {
+    if (!contextMenu || clipboardEvents.length === 0) return;
+    const targetDate = contextMenu.date;
+
+    try {
+      const promises = clipboardEvents.map(event => {
+        const originalStart = new Date(event.startTime);
+        const originalEnd = new Date(event.endTime);
+        const duration = originalEnd.getTime() - originalStart.getTime();
+
+        const newStartTime = new Date(targetDate);
+        newStartTime.setHours(originalStart.getHours(), originalStart.getMinutes());
+
+        const newEndTime = new Date(newStartTime.getTime() + duration);
+
+        return handleSaveEvent({
+          ...event,
+          id: '', // Ensure new ID for creation
+          title: `${event.title} (Copy)`,
+          startTime: newStartTime.toISOString(),
+          endTime: newEndTime.toISOString(),
+        });
+      });
+
+      await Promise.all(promises);
+      toast.success(`Pasted ${clipboardEvents.length} events to ${format(targetDate, 'MMM d')}`);
+      clearClipboard();
+      setContextMenu(null);
+    } catch (error) {
+      console.error("Paste failed", error);
+      toast.error("Failed to paste events");
+    }
+  };
+
+
   return (
     <div className="calendar-container">
-      {/* ... (headers and views) ... */}
       <CalendarHeader
         currentDate={currentDate}
+        onDateChange={setCurrentDate}
         viewMode={viewMode}
         onViewChange={setViewMode}
-        onDateChange={setCurrentDate}
-        onToday={handleToday}
         onNewMeeting={() => {
-          setNewMeetingInitialState({});
+          setNewMeetingInitialState({ date: new Date(), time: format(new Date(), 'HH:mm') });
           setIsModalOpen(true);
         }}
+        onToday={() => setCurrentDate(new Date())}
       />
 
-      {viewMode === 'week' && (
-        <WeekView
-          currentDate={currentDate}
-          events={events}
-          onEventClick={handleEventClick}
-          onTimeSlotClick={handleTimeSlotClick}
-          onDayContextMenu={handleDayContextMenu}
-        />
-      )}
-
-      {viewMode === 'day' && (
-        <DayView
-          currentDate={currentDate}
-          events={events}
-          onEventClick={handleEventClick}
-          onTimeSlotClick={handleTimeSlotClick}
-        // DayView might need same prop if we want it there too
-        />
-      )}
-
-      {viewMode === 'day' && (
-        <DayView
-          currentDate={currentDate}
-          events={events}
-          onEventClick={handleEventClick}
-          onTimeSlotClick={handleTimeSlotClick}
-        />
-      )}
-      {viewMode === 'month' && (
-        <MonthView
-          currentDate={currentDate}
-          events={events}
-          onEventClick={handleEventClick}
-          onDateClick={handleDateClick}
-        />
-      )}
+      <div className="calendar-view-content flex-1 overflow-hidden relative">
+        {viewMode === 'day' && (
+          <DayView
+            currentDate={currentDate}
+            events={events}
+            onTimeSlotClick={(date, hour) => {
+              const d = new Date(date);
+              d.setHours(hour);
+              onSlotClick(d);
+            }}
+            onEventClick={onEventClick}
+            onEventContextMenu={(e, event) => {
+              e.preventDefault();
+              e.stopPropagation();
+              globalCopyEvent(event);
+            }}
+          />
+        )}
+        {viewMode === 'week' && (
+          <WeekView
+            currentDate={currentDate}
+            events={events}
+            onTimeSlotClick={(date, hour) => {
+              const d = new Date(date);
+              d.setHours(hour);
+              onSlotClick(d);
+            }}
+            onEventClick={onEventClick}
+            onDayContextMenu={handleDayContextMenu}
+            onEventContextMenu={(e, event) => {
+              e.preventDefault();
+              e.stopPropagation();
+              globalCopyEvent(event);
+            }}
+          />
+        )}
+        {viewMode === 'month' && (
+          <MonthView
+            currentDate={currentDate}
+            events={events}
+            onDateClick={(date) => {
+              setNewMeetingInitialState({ date, time: '09:00' });
+              setIsModalOpen(true);
+            }}
+            onEventClick={onEventClick}
+          />
+        )}
+      </div>
 
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Schedule New Meeting"
+        title="New Meeting"
       >
         <NewMeetingForm
           onClose={() => setIsModalOpen(false)}
-          onSuccess={fetchEvents}
-          initialDate={newMeetingInitialState.date}
+          onSuccess={handleSaveEvent}
+          initialDate={newMeetingInitialState.date ? format(newMeetingInitialState.date, 'yyyy-MM-dd') : undefined}
           initialTime={newMeetingInitialState.time}
         />
       </Modal>
@@ -360,8 +291,7 @@ export default function CalendarContainer() {
         mode={eventModalMode}
         currentUserId={session?.user?.id}
         onRespond={handleRespond}
-        // @ts-ignore
-        onCopy={copyEvent}
+        onCopy={handleCopyEvent}
       />
 
       {/* Context Menu */}
@@ -433,4 +363,3 @@ export default function CalendarContainer() {
     </div>
   );
 }
-

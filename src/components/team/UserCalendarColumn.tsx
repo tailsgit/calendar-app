@@ -30,9 +30,10 @@ interface UserCalendarColumnProps {
     currentDate: Date;
     columnCount: number; // 1, 2, 3, or 4
     onSlotClick?: (startTime: Date) => void;
+    onContextMenu?: (e: React.MouseEvent, startTime: Date) => void;
 }
 
-export default function UserCalendarColumn({ user, events, currentDate, columnCount, onSlotClick }: UserCalendarColumnProps) {
+export default function UserCalendarColumn({ user, events, currentDate, columnCount, onSlotClick, onContextMenu }: UserCalendarColumnProps) {
     const startDate = startOfWeek(currentDate, { weekStartsOn: 1 }); // Monday
     // For 3-4 people, we might show fewer days, but for now let's try to show 5 days (Mon-Fri)
     // and let CSS handle the compression/scrolling.
@@ -98,6 +99,13 @@ export default function UserCalendarColumn({ user, events, currentDate, columnCo
                                             const slotTime = new Date(day);
                                             slotTime.setHours(hour, 0, 0, 0);
                                             onSlotClick(slotTime);
+                                        }
+                                    }}
+                                    onContextMenu={(e) => {
+                                        if (onContextMenu) {
+                                            const slotTime = new Date(day);
+                                            slotTime.setHours(hour, 0, 0, 0);
+                                            onContextMenu(e, slotTime);
                                         }
                                     }}
                                 >

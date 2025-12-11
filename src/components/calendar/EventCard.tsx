@@ -10,6 +10,7 @@ interface EventProps {
   color?: string;
   status?: string; // SCHEDULED, PENDING, ACCEPTED, DECLINED
   onClick?: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
   top?: number; // Optional override for positioning
   isLunch?: boolean;
   left?: string;
@@ -24,6 +25,7 @@ export default function EventCard({
   color = 'var(--color-accent)',
   status,
   onClick,
+  onContextMenu,
   top: customTop,
   isLunch,
   left,
@@ -93,6 +95,10 @@ export default function EventCard({
       onClick={(e) => {
         e.stopPropagation();
         onClick?.();
+      }}
+      onContextMenu={(e) => {
+        e.stopPropagation();
+        onContextMenu?.(e);
       }}
     >
       <div className="event-content">

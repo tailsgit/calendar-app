@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { format, startOfWeek, addDays, subWeeks, addWeeks, startOfMonth, endOfMonth, endOfWeek, isSameDay } from 'date-fns';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useSession } from 'next-auth/react';
 import MultiUserSearch from '@/components/team/MultiUserSearch';
 import toast from 'react-hot-toast';
 import UserCalendarColumn from '@/components/team/UserCalendarColumn';
@@ -11,6 +12,7 @@ import SmartSuggestionsPanel from '@/components/smart-scheduling/SmartSuggestion
 import TeamHeatmap from '@/components/team/TeamHeatmap';
 import UserMonthCalendar from '@/components/team/UserMonthCalendar';
 import CreateTeamEventModal from '@/components/team/CreateTeamEventModal';
+import { useClipboard } from '@/context/ClipboardContext';
 
 interface User {
   id: string;
@@ -29,9 +31,14 @@ interface Event {
   endTime: string;
   color?: string;
   status?: string; // Add status to event
+  description?: string;
+  locationType?: string;
+  participants?: any[];
 }
 
 function TeamCalendarContent() {
+  const { data: session } = useSession();
+  const { clipboardEvents, clearClipboard } = useClipboard();
   const searchParams = useSearchParams();
   const router = useRouter();
   const rescheduleId = searchParams.get('reschedule');
@@ -48,6 +55,8 @@ function TeamCalendarContent() {
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [draftStartTime, setDraftStartTime] = useState<Date | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; date: Date } | null>(null);
 
   useEffect(() => {
     if (rescheduleId) {
@@ -70,12 +79,6 @@ function TeamCalendarContent() {
             }
           });
         }
-
-        // Filter out current user if they are already in the list to avoid redundancy? 
-        // No, maybe keep them to see own schedule alongside? 
-        // Usually you want to see yourself + others. 
-        // If the list is empty (just me), rely on default behavior? 
-        // But for reschedule, seeing everyone including me is good.
 
         if (initialUsers.length > 0) {
           setSelectedUsers(initialUsers.slice(0, 4)); // Limit to 4 for UI consistency
@@ -149,6 +152,13 @@ function TeamCalendarContent() {
 
   const handleCreateTeamMeeting = async (title: string, start: Date, end: Date, locationType: string, description: string) => {
     try {
+      // Filter out the current user (creator) from attendees to prevent duplication/errors
+      // @ts-ignore
+      const currentUserId = session?.user?.id;
+      const attendees = selectedUsers
+        .filter(u => u.id !== currentUserId)
+        .map(u => u.id);
+
       const res = await fetch('/api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -158,7 +168,7 @@ function TeamCalendarContent() {
           startTime: start.toISOString(),
           endTime: end.toISOString(),
           locationType: locationType || 'VIDEO',
-          attendees: selectedUsers.map(u => u.id)
+          attendees: attendees
         })
       });
 
@@ -250,8 +260,69 @@ function TeamCalendarContent() {
     }
   };
 
+  const handleContextMenu = (e: React.MouseEvent, startTime: Date) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, date: startTime });
+  };
+
+  const pasteEvents = async () => {
+    if (!contextMenu || clipboardEvents.length === 0) return;
+    const targetDate = contextMenu.date;
+
+    try {
+      const promises = clipboardEvents.map(async (event) => {
+        // Duration
+        const originalStart = new Date(event.startTime);
+        const originalEnd = new Date(event.endTime);
+        const duration = originalEnd.getTime() - originalStart.getTime();
+
+        const newStart = new Date(targetDate);
+        newStart.setHours(originalStart.getHours(), originalStart.getMinutes());
+        const newEnd = new Date(newStart.getTime() + duration);
+
+        // Attendees: prefer original participants if available, else selectedUsers
+        let attendees: string[] = [];
+        if (event.participants && event.participants.length > 0) {
+          // event.participants might be objects with user
+          attendees = event.participants.map((p: any) => p.user?.id || p.id || p).filter(Boolean);
+        } else {
+          // @ts-ignore
+          attendees = selectedUsers.filter(u => u.id !== session?.user?.id).map(u => u.id);
+        }
+
+        // Filter out self just in case backend fails on duplicate owner
+        // @ts-ignore
+        attendees = attendees.filter(id => id !== session?.user?.id);
+
+        const res = await fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: `${event.title} (Copy)`,
+            description: event.description || '',
+            startTime: newStart.toISOString(),
+            endTime: newEnd.toISOString(),
+            locationType: event.locationType || 'VIDEO',
+            attendees
+          })
+        });
+
+        if (!res.ok) throw new Error('Failed to paste event');
+      });
+
+      await Promise.all(promises);
+      toast.success('Events pasted successfully');
+      setRefreshTrigger(v => v + 1);
+      clearClipboard();
+      setContextMenu(null);
+    } catch (error) {
+      toast.error('Failed to paste events');
+      console.error(error);
+    }
+  };
+
   return (
-    <div className="team-page">
+    <div className="team-page" onClick={() => setContextMenu(null)}>
       {rescheduleId && (
         <div className="reschedule-banner">
           <strong>Reschedule Mode</strong>: Select a time slot below to propose a new time for "{rescheduleEvent?.title || 'Meeting'}".
@@ -361,6 +432,7 @@ function TeamCalendarContent() {
                     currentDate={currentDate}
                     columnCount={selectedUsers.length}
                     onSlotClick={handleSlotClick}
+                    onContextMenu={handleContextMenu}
                   />
                 </div>
               ))}
@@ -382,6 +454,25 @@ function TeamCalendarContent() {
           selectedUsers={selectedUsers}
           userEvents={userEvents}
         />
+      )}
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          className="context-menu"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            className="menu-item"
+            onClick={() => {
+              pasteEvents();
+            }}
+            disabled={clipboardEvents.length === 0}
+          >
+            Paste Events ({clipboardEvents.length})
+          </button>
+        </div>
       )}
 
 
@@ -523,6 +614,37 @@ function TeamCalendarContent() {
                     background: var(--color-bg-highlight); /* Subtle tint */
                     font-weight: 600;
                     box-shadow: 0 0 0 1px var(--color-accent);
+                }
+
+                .context-menu {
+                    position: fixed;
+                    background: white;
+                    border: 1px solid var(--color-border);
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                    border-radius: 8px;
+                    padding: 4px 0;
+                    z-index: 9999;
+                    min-width: 150px;
+                }
+
+                .menu-item {
+                    display: block;
+                    width: 100%;
+                    text-align: left;
+                    padding: 8px 12px;
+                    background: none;
+                    border: none;
+                    cursor: pointer;
+                    font-size: 0.9rem;
+                    color: var(--color-text-main);
+                }
+                .menu-item:hover:not(:disabled) {
+                    background-color: var(--color-bg-secondary);
+                }
+                .menu-item:disabled {
+                    color: var(--color-text-secondary);
+                    cursor: not-allowed;
+                    opacity: 0.6;
                 }
             `}</style>
     </div>

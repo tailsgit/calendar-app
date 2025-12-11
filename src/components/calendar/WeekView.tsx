@@ -20,9 +20,10 @@ interface WeekViewProps {
   onTimeSlotClick?: (date: Date, hour: number) => void;
   onConflictClick?: (group: any) => void;
   onDayContextMenu?: (e: React.MouseEvent, date: Date) => void;
+  onEventContextMenu?: (e: React.MouseEvent, event: Event) => void;
 }
 
-export default function WeekView({ currentDate, events, onEventClick, onTimeSlotClick, onConflictClick, onDayContextMenu }: WeekViewProps) {
+export default function WeekView({ currentDate, events, onEventClick, onTimeSlotClick, onConflictClick, onDayContextMenu, onEventContextMenu }: WeekViewProps) {
   const startDate = startOfWeek(currentDate, { weekStartsOn: 1 }); // Monday start
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(startDate, i));
   const hours = Array.from({ length: 17 }, (_, i) => i + 7); // 7 AM - 11 PM (07:00 - 23:00)
@@ -102,6 +103,7 @@ export default function WeekView({ currentDate, events, onEventClick, onTimeSlot
                             color="var(--color-accent)"
                             isLunch={event.isLunch}
                             onClick={() => onEventClick?.(event)}
+                            onContextMenu={(e) => onEventContextMenu?.(e, event)}
                             top={new Date(event.startTime).getMinutes()} // Relative to hour slot
                             left={layout.left}
                             width={layout.width}
@@ -212,10 +214,6 @@ export default function WeekView({ currentDate, events, onEventClick, onTimeSlot
           display: flex;
           height: 60px;
           border-bottom: 1px solid var(--color-border);
-        }
-
-        .hour-row:last-child {
-          border-bottom: none;
         }
 
         .hour-row:last-child {
