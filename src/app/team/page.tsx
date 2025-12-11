@@ -413,6 +413,8 @@ function TeamCalendarContent() {
                       events={userEvents[user.id] || []}
                       currentDate={currentDate}
                       onSlotClick={handleSlotClick}
+                      hoveredDate={hoveredSlot}
+                      onDateHover={setHoveredSlot}
                     />
                   </div>
                 ))}
