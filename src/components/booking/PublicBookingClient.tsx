@@ -2,8 +2,11 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { format, addMonths, subMonths, startOfDay, isSameDay } from 'date-fns';
-import MonthView from '@/components/calendar/MonthView'; // Reusing existing component
+import {
+    format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
+    addDays, getDay, isSameMonth, isBefore, isAfter, isToday,
+    addMonths, subMonths, startOfDay, isSameDay
+} from 'date-fns';
 import toast from 'react-hot-toast';
 import { Loader2, ChevronLeft, ChevronRight, Clock, Calendar as CalendarIcon, CheckCircle } from 'lucide-react';
 
@@ -42,8 +45,6 @@ export default function PublicBookingClient({ page }: { page: BookingPageData })
     const fetchSlots = async (date: Date) => {
         setLoadingSlots(true);
         try {
-            // Fetch for the whole day (00:00 to 23:59) in UTC or just pass simplified range
-            // The API expects start/end ISO strings.
             const start = startOfDay(date);
             const end = new Date(start);
             end.setHours(23, 59, 59);
@@ -89,89 +90,159 @@ export default function PublicBookingClient({ page }: { page: BookingPageData })
         }
     };
 
+    // --- Mini Calendar Logic ---
+    const monthStart = startOfMonth(currentDate);
+    const monthEnd = endOfMonth(currentDate);
+    const startDate = startOfWeek(monthStart, { weekStartsOn: 0 }); // Sunday start
+    const endDate = endOfWeek(monthEnd, { weekStartsOn: 0 });
+
+    const calendarDays = [];
+    let day = startDate;
+    while (day <= endDate) {
+        calendarDays.push(day);
+        day = addDays(day, 1);
+    }
+    const weekBit = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
     if (bookingStep === 'success') {
         return (
-            <div className="p-12 text-center flex flex-col items-center justify-center space-y-4">
-                <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4">
-                    <CheckCircle size={32} />
+            <div className="p-12 text-center flex flex-col items-center justify-center space-y-4 min-h-[500px] animate-in fade-in zoom-in duration-500">
+                <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6 shadow-sm">
+                    <CheckCircle size={40} />
                 </div>
-                <h2 className="text-2xl font-bold text-neutral-800">Booking Confirmed!</h2>
-                <p className="text-neutral-600">
-                    You are scheduled with {page.owner.name} for {format(new Date(selectedSlot!), 'EEEE, MMMM do')} at {format(new Date(selectedSlot!), 'h:mm a')}.
-                </p>
-                <p className="text-sm text-neutral-500">A calendar invitation has been sent to your email.</p>
+                <h2 className="text-3xl font-bold text-neutral-800">Booking Confirmed!</h2>
+                <div className="bg-neutral-50 p-6 rounded-xl border border-neutral-100 max-w-md w-full mt-4">
+                    <div className="flex items-center justify-center space-x-3 mb-4">
+                        {page.owner.image && (
+                            <img src={page.owner.image} className="w-10 h-10 rounded-full" />
+                        )}
+                        <div className="text-left">
+                            <p className="text-sm text-neutral-500 font-medium">Scheduled with</p>
+                            <p className="font-semibold text-neutral-900">{page.owner.name}</p>
+                        </div>
+                    </div>
+                    <hr className="border-neutral-200 my-4" />
+                    <div className="flex items-center text-neutral-700 mb-2">
+                        <CalendarIcon size={18} className="mr-3 text-neutral-400" />
+                        <span className="font-medium">{format(new Date(selectedSlot!), 'EEEE, MMMM do, yyyy')}</span>
+                    </div>
+                    <div className="flex items-center text-neutral-700">
+                        <Clock size={18} className="mr-3 text-neutral-400" />
+                        <span className="font-medium">{format(new Date(selectedSlot!), 'h:mm a')} - {format(new Date(new Date(selectedSlot!).getTime() + page.duration * 60000), 'h:mm a')}</span>
+                    </div>
+                </div>
+                <p className="text-sm text-neutral-400 mt-6">A calendar invitation has been sent to your email.</p>
             </div>
         );
     }
 
     return (
-        <div className="flex flex-col md:flex-row h-full min-h-[600px]">
-            {/* Sidebar Info */}
-            <div className="w-full md:w-1/3 p-8 border-b md:border-b-0 md:border-r border-neutral-100 bg-neutral-50/50">
-                <div className="mb-6">
+        <div className="flex flex-col md:flex-row h-full min-h-[600px] bg-white rounded-2xl overflow-hidden">
+            {/* Sidebar Info - Sticky on Desktop */}
+            <div className="w-full md:w-[35%] p-8 border-b md:border-b-0 md:border-r border-neutral-100 bg-neutral-50/50 flex flex-col md:justify-start">
+                <div className="sticky top-8">
                     {page.owner.image && (
-                        <img src={page.owner.image} alt={page.owner.name || ''} className="w-12 h-12 rounded-full mb-4" />
+                        <img src={page.owner.image} alt={page.owner.name || ''} className="w-16 h-16 rounded-full mb-6 shadow-sm" />
                     )}
-                    <p className="text-neutral-500 text-sm font-medium uppercase tracking-wider mb-1">{page.owner.name}</p>
-                    <h1 className="text-3xl font-bold text-neutral-900 mb-4">{page.title}</h1>
-                    <div className="flex items-center text-neutral-600 space-x-2 mb-2">
-                        <Clock size={16} />
-                        <span>{page.duration} mins</span>
+                    <h1 className="text-2xl font-bold text-neutral-900 mb-2 leading-tight">{page.title}</h1>
+                    <div className="flex items-center text-neutral-500 font-medium text-sm mb-6">
+                        <span className="mr-2">{page.owner.name}</span>
                     </div>
+
+                    <div className="space-y-3">
+                        <div className="flex items-center text-neutral-600">
+                            <Clock size={18} className="mr-3 text-neutral-400" />
+                            <span className="font-medium">{page.duration} mins</span>
+                        </div>
+                        {/* Placeholder for future video/phone details */}
+                        <div className="flex items-center text-neutral-600">
+                            <div className="w-[18px] mr-3 flex justify-center"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div></div>
+                            <span className="font-medium">Video Meeting</span>
+                        </div>
+                    </div>
+
                     {page.description && (
-                        <p className="text-neutral-600 mt-4 leading-relaxed text-sm">{page.description}</p>
+                        <p className="text-neutral-500 mt-8 text-sm leading-relaxed">{page.description}</p>
                     )}
                 </div>
             </div>
 
             {/* Main Content */}
-            <div className="flex-1 p-8 bg-white relative">
-                {bookingStep === 'date' ? (
-                    <div className="flex flex-col h-full">
-                        <h2 className="text-xl font-semibold mb-6">Select a Date & Time</h2>
+            <div className="flex-1 p-4 md:p-8 lg:p-12 relative overflow-y-auto">
+                <div className="max-w-3xl mx-auto h-full">
+                    {bookingStep === 'date' ? (
+                        <div className="flex flex-col h-full animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <h2 className="text-xl font-bold mb-6 text-neutral-900">Select a Date & Time</h2>
 
-                        <div className="flex flex-col lg:flex-row gap-8">
-                            {/* Calendar */}
-                            <div className="flex-1 border rounded-xl p-4 shadow-sm">
-                                <div className="flex items-center justify-between mb-4 px-2">
-                                    <h3 className="font-medium text-lg">{format(currentDate, 'MMMM yyyy')}</h3>
-                                    <div className="flex space-x-1">
-                                        <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-1 hover:bg-neutral-100 rounded">
-                                            <ChevronLeft size={20} />
-                                        </button>
-                                        <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="p-1 hover:bg-neutral-100 rounded">
-                                            <ChevronRight size={20} />
-                                        </button>
+                            <div className="flex flex-col lg:flex-row gap-10 h-full">
+                                {/* Mini Calendar */}
+                                <div className="flex-1 max-w-[400px]">
+                                    <div className="flex items-center justify-between mb-6">
+                                        <h3 className="font-semibold text-neutral-800 text-lg ml-2">{format(currentDate, 'MMMM yyyy')}</h3>
+                                        <div className="flex space-x-2">
+                                            <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-2 hover:bg-neutral-100 rounded-full transition-colors text-neutral-600">
+                                                <ChevronLeft size={20} />
+                                            </button>
+                                            <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="p-2 hover:bg-neutral-100 rounded-full transition-colors text-neutral-600">
+                                                <ChevronRight size={20} />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-7 mb-2">
+                                        {weekBit.map((d, i) => (
+                                            <div key={i} className="text-center text-xs font-semibold text-neutral-400 py-2 uppercase tracking-wide">
+                                                {d}
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="grid grid-cols-7 gap-y-2 gap-x-0">
+                                        {calendarDays.map((date, idx) => {
+                                            const isCurrentMonth = isSameMonth(date, currentDate);
+                                            const isPast = isBefore(date, startOfDay(new Date()));
+                                            const isSelected = selectedDate && isSameDay(date, selectedDate);
+                                            const isTodayDate = isToday(date);
+
+                                            if (!isCurrentMonth) return <div key={idx} />; // Empty cells for clearer look or render gray
+
+                                            return (
+                                                <div key={idx} className="flex justify-center">
+                                                    <button
+                                                        disabled={isPast}
+                                                        onClick={() => !isPast && setSelectedDate(date)}
+                                                        className={`
+                                                        w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium transition-all duration-200
+                                                        ${isSelected
+                                                                ? 'bg-neutral-900 text-white shadow-md scale-105'
+                                                                : isPast
+                                                                    ? 'text-neutral-300 cursor-not-allowed'
+                                                                    : 'text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900 group-hover:bg-blue-50'
+                                                            }
+                                                        ${isTodayDate && !isSelected ? 'text-blue-600 font-bold bg-blue-50' : ''}
+                                                    `}
+                                                    >
+                                                        {format(date, 'd')}
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
-                                <div className="customer-calendar-wrapper">
-                                    <MonthView
-                                        currentDate={currentDate}
-                                        events={[]} // No events shown to public
-                                        onDateClick={(date) => {
-                                            // Only allow future dates
-                                            if (startOfDay(date) >= startOfDay(new Date())) {
-                                                setSelectedDate(date);
-                                            }
-                                        }}
-                                    />
-                                </div>
-                            </div>
 
-                            {/* Slots */}
-                            <div className="w-full lg:w-64 flex-shrink-0">
-                                {selectedDate ? (
-                                    <div className="h-full flex flex-col">
-                                        <h3 className="font-medium mb-4 text-neutral-900">
-                                            {format(selectedDate, 'EEEE, MMM d')}
-                                        </h3>
+                                {/* Slot List */}
+                                <div className="w-full lg:w-64 flex-shrink-0 border-t lg:border-t-0 lg:border-l border-neutral-100 pt-8 lg:pt-0 lg:pl-8">
+                                    <h3 className="font-semibold text-neutral-900 mb-4 h-8 flex items-center">
+                                        {selectedDate ? format(selectedDate, 'EEEE, MMM d') : 'Select a date'}
+                                    </h3>
 
-                                        {loadingSlots ? (
+                                    {selectedDate ? (
+                                        loadingSlots ? (
                                             <div className="flex items-center justify-center py-12">
                                                 <Loader2 className="animate-spin text-neutral-400" />
                                             </div>
                                         ) : slots.length > 0 ? (
-                                            <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                                            <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar">
                                                 {slots.map(slot => (
                                                     <button
                                                         key={slot}
@@ -179,130 +250,112 @@ export default function PublicBookingClient({ page }: { page: BookingPageData })
                                                             setSelectedSlot(slot);
                                                             setBookingStep('form');
                                                         }}
-                                                        className="w-full py-3 px-4 text-center border border-primary text-primary font-medium rounded-lg hover:bg-primary hover:text-white transition-all focus:ring-2 focus:ring-primary focus:ring-offset-1"
+                                                        className="w-full py-3 px-4 text-center border border-neutral-200 text-neutral-700 font-semibold rounded-lg hover:border-black hover:bg-white hover:shadow-sm active:scale-[0.98] transition-all bg-white"
                                                     >
                                                         {format(new Date(slot), 'h:mm a')}
                                                     </button>
                                                 ))}
+                                                <div className="h-4" /> {/* Spacer */}
                                             </div>
                                         ) : (
-                                            <p className="text-sm text-neutral-500 bg-neutral-50 p-4 rounded-lg">
-                                                No availability on this day.
-                                            </p>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center justify-center h-full text-neutral-400 text-sm bg-neutral-50 rounded-xl border border-dashed border-neutral-200">
-                                        Select a date to view times
-                                    </div>
-                                )}
+                                            <div className="text-center py-8 bg-neutral-50 rounded-lg border border-dashed border-neutral-200">
+                                                <p className="text-sm text-neutral-500 font-medium">No avaiability</p>
+                                            </div>
+                                        )
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center h-64 text-neutral-400 bg-neutral-50/50 rounded-xl border border-dashed border-neutral-100">
+                                            <CalendarIcon size={32} className="mb-2 opacity-20" />
+                                            <span className="text-sm">Choose a date to see times</span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                ) : (
-                    <div className="max-w-md mx-auto pt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <button
-                            onClick={() => {
-                                setBookingStep('date');
-                                setSelectedSlot(null);
-                            }}
-                            className="text-sm text-neutral-500 hover:text-neutral-800 flex items-center mb-6"
-                        >
-                            <ChevronLeft size={16} className="mr-1" /> Back to Calendar
-                        </button>
-
-                        <h2 className="text-xl font-bold mb-2">Enter Details</h2>
-                        <p className="text-neutral-500 text-sm mb-6">
-                            {format(new Date(selectedSlot!), 'EEEE, MMMM do')} at {format(new Date(selectedSlot!), 'h:mm a')}
-                        </p>
-
-                        <form onSubmit={handleBook} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-neutral-700 mb-1">Name *</label>
-                                <input
-                                    required
-                                    type="text"
-                                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                                    value={formData.name}
-                                    onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-neutral-700 mb-1">Email *</label>
-                                <input
-                                    required
-                                    type="email"
-                                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                                    value={formData.email}
-                                    onChange={e => setFormData({ ...formData, email: e.target.value })}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-neutral-700 mb-1">Notes</label>
-                                <textarea
-                                    rows={3}
-                                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none"
-                                    value={formData.notes}
-                                    onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                                />
-                            </div>
-
+                    ) : (
+                        // FORM
+                        <div className="max-w-md mx-auto pt-4 animate-in fade-in slide-in-from-right-4 duration-300">
                             <button
-                                type="submit"
-                                disabled={submitting}
-                                className="w-full py-3 bg-primary text-white font-semibold rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed mt-4 transition-colors"
+                                onClick={() => {
+                                    setBookingStep('date');
+                                    setSelectedSlot(null);
+                                }}
+                                className="text-sm font-semibold text-neutral-500 hover:text-neutral-900 flex items-center mb-8 px-4 py-2 hover:bg-neutral-100 rounded-lg w-max -ml-4 transition-colors"
                             >
-                                {submitting ? (
-                                    <span className="flex items-center justify-center">
-                                        <Loader2 size={18} className="animate-spin mr-2" /> Booking...
-                                    </span>
-                                ) : 'Schedule Event'}
+                                <ChevronLeft size={16} className="mr-1" /> Back
                             </button>
-                        </form>
-                    </div>
-                )}
+
+                            <div className="mb-8">
+                                <h2 className="text-2xl font-bold mb-2 text-neutral-900">Enter Details</h2>
+                                <p className="text-neutral-500 text-sm flex items-center">
+                                    <Clock size={14} className="mr-1.5" />
+                                    {format(new Date(selectedSlot!), 'EEEE, MMMM do')} at <strong className="ml-1 text-neutral-800">{format(new Date(selectedSlot!), 'h:mm a')}</strong>
+                                </p>
+                            </div>
+
+                            <form onSubmit={handleBook} className="space-y-5">
+                                <div>
+                                    <label className="block text-sm font-semibold text-neutral-700 mb-1.5">Full Name *</label>
+                                    <input
+                                        required
+                                        type="text"
+                                        placeholder="John Doe"
+                                        className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-lg focus:ring-2 focus:ring-neutral-900 focus:border-transparent outline-none transition-all"
+                                        value={formData.name}
+                                        onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-neutral-700 mb-1.5">Email Address *</label>
+                                    <input
+                                        required
+                                        type="email"
+                                        placeholder="john@example.com"
+                                        className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-lg focus:ring-2 focus:ring-neutral-900 focus:border-transparent outline-none transition-all"
+                                        value={formData.email}
+                                        onChange={e => setFormData({ ...formData, email: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-neutral-700 mb-1.5">Additional Notes</label>
+                                    <textarea
+                                        rows={4}
+                                        placeholder="Please share anything that will help prepare for our meeting."
+                                        className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-lg focus:ring-2 focus:ring-neutral-900 focus:border-transparent outline-none resize-none transition-all"
+                                        value={formData.notes}
+                                        onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                                    />
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={submitting}
+                                    className="w-full py-3.5 bg-neutral-900 text-white font-bold rounded-lg hover:bg-black hover:shadow-lg transform active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed mt-4 transition-all"
+                                >
+                                    {submitting ? (
+                                        <span className="flex items-center justify-center">
+                                            <Loader2 size={18} className="animate-spin mr-2" /> confirm Booking...
+                                        </span>
+                                    ) : 'Schedule Event'}
+                                </button>
+                            </form>
+                        </div>
+                    )}
+                </div>
             </div>
 
             <style jsx global>{`
-                .customer-calendar-wrapper .month-view {
-                    border: none;
-                    background: transparent;
-                }
-                .customer-calendar-wrapper .month-header {
-                    background: transparent;
-                    border-bottom: none;
-                }
-                .customer-calendar-wrapper .day-cell {
-                    border: none;
-                    border-radius: 50%;
-                    width: 40px;
-                    height: 40px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    margin: 2px auto;
-                }
-                .customer-calendar-wrapper .day-cell:hover {
-                    background-color: var(--color-bg-secondary);
-                    color: var(--color-primary);
-                }
-                .customer-calendar-wrapper .day-cell.today .date-number {
-                    background: transparent;
-                    color: inherit;
-                    font-weight: bold;
-                }
-                /* Selected State Hack since reusing component */
-                /* Ideally would pass selected prop to MonthView but for speed using CSS/Parents */
-                
                 .custom-scrollbar::-webkit-scrollbar {
-                    width: 6px;
+                    width: 5px;
                 }
                 .custom-scrollbar::-webkit-scrollbar-track {
                     background: transparent;
                 }
                 .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background-color: var(--color-border);
-                    border-radius: 10px;
+                    background-color: #e5e5e5;
+                    border-radius: 20px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background-color: #d4d4d4;
                 }
             `}</style>
         </div>
