@@ -20,9 +20,10 @@ interface DayViewProps {
   onEventClick?: (event: Event) => void;
   onTimeSlotClick?: (date: Date, hour: number) => void;
   onEventContextMenu?: (e: React.MouseEvent, event: Event) => void;
+  onDayContextMenu?: (e: React.MouseEvent, date: Date) => void;
 }
 
-export default function DayView({ currentDate, events, onEventClick, onTimeSlotClick, onEventContextMenu }: DayViewProps) {
+export default function DayView({ currentDate, events, onEventClick, onTimeSlotClick, onEventContextMenu, onDayContextMenu }: DayViewProps) {
   const hours = Array.from({ length: 17 }, (_, i) => i + 7); // 7 AM - 11 PM
   const dayStart = startOfDay(currentDate);
 
@@ -51,6 +52,12 @@ export default function DayView({ currentDate, events, onEventClick, onTimeSlotC
               <div
                 className="hour-slot"
                 onClick={() => onTimeSlotClick?.(currentDate, hour)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  const slotDate = new Date(currentDate);
+                  slotDate.setHours(hour, 0, 0, 0);
+                  onDayContextMenu?.(e, slotDate);
+                }}
               >
                 {slotEvents.map(event => {
                   const layout = layoutMap.get(event.id) || { left: '0%', width: '100%', zIndex: 1 };

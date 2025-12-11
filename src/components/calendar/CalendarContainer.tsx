@@ -236,6 +236,7 @@ export default function CalendarContainer() {
               e.stopPropagation();
               globalCopyEvent(event);
             }}
+            onDayContextMenu={handleDayContextMenu}
           />
         )}
         {viewMode === 'week' && (
