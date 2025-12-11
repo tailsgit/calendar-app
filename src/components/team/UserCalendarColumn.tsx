@@ -30,10 +30,12 @@ interface UserCalendarColumnProps {
     currentDate: Date;
     columnCount: number; // 1, 2, 3, or 4
     onSlotClick?: (startTime: Date) => void;
+    hoveredSlot?: Date | null;
+    onSlotHover?: (date: Date | null) => void;
     onContextMenu?: (e: React.MouseEvent, startTime: Date) => void;
 }
 
-export default function UserCalendarColumn({ user, events, currentDate, columnCount, onSlotClick, onContextMenu }: UserCalendarColumnProps) {
+export default function UserCalendarColumn({ user, events, currentDate, columnCount, onSlotClick, onContextMenu, hoveredSlot, onSlotHover }: UserCalendarColumnProps) {
     const startDate = startOfWeek(currentDate, { weekStartsOn: 1 }); // Monday
     // For 3-4 people, we might show fewer days, but for now let's try to show 5 days (Mon-Fri)
     // and let CSS handle the compression/scrolling.
@@ -43,6 +45,11 @@ export default function UserCalendarColumn({ user, events, currentDate, columnCo
     // Calculate dynamic styles based on column count
     const isCompact = columnCount >= 3;
     const showTitle = columnCount <= 2;
+
+    const isHoveredSlot = (day: Date, hour: number) => {
+        if (!hoveredSlot) return false;
+        return isSameDay(day, hoveredSlot) && hoveredSlot.getHours() === hour;
+    };
 
     return (
         <div className="user-calendar-column">
@@ -90,43 +97,54 @@ export default function UserCalendarColumn({ user, events, currentDate, columnCo
                             <div className="time-label">
                                 {format(new Date().setHours(hour, 0), 'h')}
                             </div>
-                            {weekDays.map(day => (
-                                <div
-                                    key={day.toString()}
-                                    className={`time-slot ${onSlotClick ? 'interactive' : ''}`}
-                                    onClick={() => {
-                                        if (onSlotClick) {
-                                            const slotTime = new Date(day);
-                                            slotTime.setHours(hour, 0, 0, 0);
-                                            onSlotClick(slotTime);
-                                        }
-                                    }}
-                                    onContextMenu={(e) => {
-                                        if (onContextMenu) {
-                                            const slotTime = new Date(day);
-                                            slotTime.setHours(hour, 0, 0, 0);
-                                            onContextMenu(e, slotTime);
-                                        }
-                                    }}
-                                >
-                                    {events.filter(event =>
-                                        isSameDay(new Date(event.startTime), day) &&
-                                        new Date(event.startTime).getHours() === hour
-                                    ).map(event => (
-                                        <div
-                                            key={event.id}
-                                            className="mini-event"
-                                            style={{
-                                                backgroundColor: 'var(--color-accent)',
-                                                opacity: new Date(event.endTime) < new Date() ? 0.25 : (event.isLunch ? 0.65 : 1)
-                                            }}
-                                            title={`${event.title} (${format(new Date(event.startTime), 'h:mm')} - ${format(new Date(event.endTime), 'h:mm')})`}
-                                        >
-                                            {!isCompact && event.title}
-                                        </div>
-                                    ))}
-                                </div>
-                            ))}
+                            {weekDays.map(day => {
+                                const isSyncHover = isHoveredSlot(day, hour);
+                                return (
+                                    <div
+                                        key={day.toString()}
+                                        className={`time-slot ${onSlotClick ? 'interactive' : ''} ${isSyncHover ? 'hover-sync' : ''}`}
+                                        onClick={() => {
+                                            if (onSlotClick) {
+                                                const slotTime = new Date(day);
+                                                slotTime.setHours(hour, 0, 0, 0);
+                                                onSlotClick(slotTime);
+                                            }
+                                        }}
+                                        onMouseEnter={() => {
+                                            if (onSlotHover) {
+                                                const slotTime = new Date(day);
+                                                slotTime.setHours(hour, 0, 0, 0);
+                                                onSlotHover(slotTime);
+                                            }
+                                        }}
+                                        onMouseLeave={() => onSlotHover?.(null)}
+                                        onContextMenu={(e) => {
+                                            if (onContextMenu) {
+                                                const slotTime = new Date(day);
+                                                slotTime.setHours(hour, 0, 0, 0);
+                                                onContextMenu(e, slotTime);
+                                            }
+                                        }}
+                                    >
+                                        {events.filter(event =>
+                                            isSameDay(new Date(event.startTime), day) &&
+                                            new Date(event.startTime).getHours() === hour
+                                        ).map(event => (
+                                            <div
+                                                key={event.id}
+                                                className="mini-event"
+                                                style={{
+                                                    backgroundColor: 'var(--color-accent)',
+                                                    opacity: new Date(event.endTime) < new Date() ? 0.25 : (event.isLunch ? 0.65 : 1)
+                                                }}
+                                                title={`${event.title} (${format(new Date(event.startTime), 'h:mm')} - ${format(new Date(event.endTime), 'h:mm')})`}
+                                            >
+                                                {!isCompact && event.title}
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            })}
                         </div>
                     ))}
                 </div>
@@ -303,6 +321,10 @@ export default function UserCalendarColumn({ user, events, currentDate, columnCo
                     background-color: rgba(79, 70, 229, 0.1); /* Indigo tint for hover */
                 }
 
+                .hover-sync {
+                    background-color: rgba(79, 70, 229, 0.1); /* Same as hover */
+                }
+
                 .mini-event {
                     font-size: 0.65rem;
                     color: white;
@@ -315,6 +337,6 @@ export default function UserCalendarColumn({ user, events, currentDate, columnCo
                     opacity: 0.9;
                 }
             `}</style>
-        </div>
+        </div >
     );
 }

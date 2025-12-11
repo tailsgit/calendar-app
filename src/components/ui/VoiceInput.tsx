@@ -13,7 +13,7 @@ interface Contact {
 }
 
 interface VoiceInputProps {
-    onResult: (data: { title: string; start: Date; end?: Date; description?: string; location?: string; attendees?: Contact[]; isUpdate?: boolean }) => void;
+    onResult: (data: { title: string; start: Date; end?: Date; description?: string; location?: string; attendees?: Contact[]; isUpdate?: boolean; isDelete?: boolean }) => void;
 }
 
 export default function VoiceInput({ onResult }: VoiceInputProps) {
@@ -48,6 +48,10 @@ export default function VoiceInput({ onResult }: VoiceInputProps) {
         const normalizedText = normalizeText(text);
 
         try {
+            // --- 0. Deletion Detection ---
+            const deleteRegex = /\b(cancel|delete|remove|clear)\b/i;
+            const isDelete = deleteRegex.test(normalizedText);
+
             // --- 2. Advanced Parsing with Negation Handling ---
             const correctionRegex = /\b(actually|no wait|change that to|instead)\b/i;
             const match = normalizedText.match(correctionRegex);
@@ -56,13 +60,12 @@ export default function VoiceInput({ onResult }: VoiceInputProps) {
             let textForTitle = normalizedText;
 
             if (match && match.index !== undefined) {
-                // Split into Part A (original) and Part B (correction)
+                // ... (Correction logic - kept same) ...
                 const partA = normalizedText.slice(0, match.index).trim();
                 const partB = normalizedText.slice(match.index + match[0].length).trim();
 
                 console.log(`[Voice Parse] Correction detected. A: "${partA}" | B: "${partB}"`);
 
-                // Step 1: Run Chrono on Part B
                 const resultsB = chrono.parse(partB, new Date(), { forwardDate: true });
                 if (resultsB.length > 0) {
                     const res = resultsB[0];
@@ -73,29 +76,15 @@ export default function VoiceInput({ onResult }: VoiceInputProps) {
                     };
                     textForTitle = `${partA} ${partB}`;
 
-                    // Remove the matched text from Part B using index to be precise
-                    // original text: partB
-                    // match index: res.index
-                    // match length: res.text.length
-                    // We need to reconstruct textForTitle carefully.
-                    // Actually, simpler approach for Title Reconstruction:
-                    // 1. Clean Part A of any dates (if present)
-                    // 2. Clean Part B of strict date match
-                    // 3. Combine.
-
                     let cleanPartA = partA;
                     const resultsA = chrono.parse(partA, new Date());
                     if (resultsA.length > 0) {
-                        // Remove all date matches from A to avoid confusion
-                        // Iterate backwards to not mess up indices?
                         resultsA.reverse().forEach(r => {
                             cleanPartA = cleanPartA.slice(0, r.index) + cleanPartA.slice(r.index + r.text.length);
                         });
                     }
 
                     let cleanPartB = partB;
-                    // We already have resultsB[0] as the active date, but let's clean ALL date text from B to get the "Title" part
-                    // e.g. "Dinner at 6pm" -> "Dinner "
                     const allResultsB = chrono.parse(partB, new Date());
                     allResultsB.reverse().forEach(r => {
                         cleanPartB = cleanPartB.slice(0, r.index) + cleanPartB.slice(r.index + r.text.length);
@@ -104,8 +93,6 @@ export default function VoiceInput({ onResult }: VoiceInputProps) {
                     textForTitle = `${cleanPartA} ${cleanPartB}`;
 
                 } else {
-                    // Step 2b: Fallback to Part A
-                    console.log("[Voice Parse] Correction had no date. Using Part A for date.");
                     const resultsA = chrono.parse(partA, new Date(), { forwardDate: true });
                     if (resultsA.length > 0) {
                         const res = resultsA[0];
@@ -114,11 +101,9 @@ export default function VoiceInput({ onResult }: VoiceInputProps) {
                             end: res.end ? res.end.date() : undefined,
                             textMatched: res.text
                         };
-                        // Clean A of the date we used
                         textForTitle = partA.slice(0, res.index) + partA.slice(res.index + res.text.length);
-                        textForTitle = `${textForTitle} ${partB}`; // Append B content which is the correction (e.g. "actually meeting")
+                        textForTitle = `${textForTitle} ${partB}`;
                     } else {
-                        // No date in A or B? 
                         textForTitle = `${partA} ${partB}`;
                     }
                 }
@@ -132,12 +117,11 @@ export default function VoiceInput({ onResult }: VoiceInputProps) {
                         end: res.end ? res.end.date() : undefined,
                         textMatched: res.text
                     };
-                    // Robust cleaning using index
                     textForTitle = normalizedText.slice(0, res.index) + normalizedText.slice(res.index + res.text.length);
                 }
             }
 
-            // Fallback Date Logic
+            // Fallback Date Logic (Default to next hour if no date found)
             if (!dateToUse) {
                 const now = new Date();
                 const nextHour = new Date(now);
@@ -152,10 +136,8 @@ export default function VoiceInput({ onResult }: VoiceInputProps) {
             const { start } = dateToUse;
             let { end } = dateToUse;
 
-            // Duration inference logic (if not parsed)
+            // Duration inference logic
             if (!end) {
-                // Strict duration regex: "for X hours/mins"
-                // Prevent matching "for lunch" -> NaN
                 const durationMatch = normalizedText.match(/\bfor\s+(\d+(?:\.\d+)?)\s*(hour|hr|minute|min)s?\b/i);
                 if (durationMatch) {
                     const amount = parseFloat(durationMatch[1]);
@@ -168,11 +150,10 @@ export default function VoiceInput({ onResult }: VoiceInputProps) {
             }
 
             // --- 4. Intelligent Title & Metadata ---
-            // textForTitle is already theoretically stripped of dates by the logic above.
-            // But let's double check if we missed anything or if 'dateToUse.textMatched' is still needed for safety.
-            // If we used index-slicing above, we don't need to replace 'dateToUse.textMatched'.
             let cleanText = textForTitle;
             cleanText = cleanText.replace(correctionRegex, ' ');
+            cleanText = cleanText.replace(deleteRegex, ''); // Remove delete keyword from title
+
             const meta: string[] = [];
 
             // A. Recurrence
@@ -243,44 +224,49 @@ export default function VoiceInput({ onResult }: VoiceInputProps) {
             if (title.length === 0) title = "New Event";
             title = title.charAt(0).toUpperCase() + title.slice(1);
 
-            console.log(`[Voice Parse] Raw: "${text}" | Title: "${title}"`);
+            console.log(`[Voice Parse] Raw: "${text}" | Title: "${title}" | Delete: ${isDelete}`);
 
             // --- 5. Context Update Detection ("Move that") ---
             const updateRegex = /\b(move|change|reschedule|shift|delay|postpone)\b.*\b(that|it|meeting|event)\b/i;
             const isUpdate = updateRegex.test(normalizedText);
 
             // --- 6. Smart Scheduling ("Find 30 min") ---
-            const findTimeMatch = normalizedText.match(/(?:find|book|schedule)\s+(?:a\s+)?(?:time|slot|meeting)\s+for\s+(\d+(?:\.\d+)?)\s*(min|minute|hour|hr)/i);
-            if (findTimeMatch) {
-                const amount = parseFloat(findTimeMatch[1]);
-                const unit = findTimeMatch[2].toLowerCase();
-                const durationMinutes = Math.ceil(amount * (unit.startsWith('h') ? 60 : 1));
+            // Skip smart scheduling if it's a delete or update command
+            if (!isDelete && !isUpdate) {
+                const findTimeMatch = normalizedText.match(/(?:find|book|schedule)\s+(?:a\s+)?(?:time|slot|meeting)\s+for\s+(\d+(?:\.\d+)?)\s*(min|minute|hour|hr)/i);
+                if (findTimeMatch) {
+                    // ... (Smart schedule logic kept same) ...
+                    const amount = parseFloat(findTimeMatch[1]);
+                    const unit = findTimeMatch[2].toLowerCase();
+                    const durationMinutes = Math.ceil(amount * (unit.startsWith('h') ? 60 : 1));
 
-                console.log(`[Voice Parse] Smart Schedule Detected: ${durationMinutes} mins`);
+                    console.log(`[Voice Parse] Smart Schedule Detected: ${durationMinutes} mins`);
 
-                fetch(`/api/availability/suggest?duration=${durationMinutes}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.available && data.slot) {
-                            onResult({
-                                title,
-                                start: new Date(data.slot.start),
-                                end: new Date(data.slot.end),
-                                description: (meta.length > 0 ? meta.join('\n') : '') + `\n🤖 Auto-scheduled (${durationMinutes}m slot found)`,
-                                location: locationType,
-                                attendees: resolvedAttendees,
-                                isUpdate
-                            });
-                        } else {
-                            setError("Could not find free time. Opening default.");
-                            onResult({ title, start, end, description: meta.join('\n'), location: locationType, attendees: resolvedAttendees, isUpdate });
-                        }
-                    })
-                    .catch(err => {
-                        console.error("Smart schedule failed", err);
-                        onResult({ title, start, end, description: meta.join('\n'), location: locationType, attendees: resolvedAttendees, isUpdate });
-                    });
-                return;
+                    fetch(`/api/availability/suggest?duration=${durationMinutes}`)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.available && data.slot) {
+                                onResult({
+                                    title,
+                                    start: new Date(data.slot.start),
+                                    end: new Date(data.slot.end),
+                                    description: (meta.length > 0 ? meta.join('\n') : '') + `\n🤖 Auto-scheduled (${durationMinutes}m slot found)`,
+                                    location: locationType,
+                                    attendees: resolvedAttendees,
+                                    isUpdate,
+                                    isDelete
+                                });
+                            } else {
+                                setError("Could not find free time. Opening default.");
+                                onResult({ title, start, end, description: meta.join('\n'), location: locationType, attendees: resolvedAttendees, isUpdate, isDelete });
+                            }
+                        })
+                        .catch(err => {
+                            console.error("Smart schedule failed", err);
+                            onResult({ title, start, end, description: meta.join('\n'), location: locationType, attendees: resolvedAttendees, isUpdate, isDelete });
+                        });
+                    return;
+                }
             }
 
             // Normal Return
@@ -291,7 +277,8 @@ export default function VoiceInput({ onResult }: VoiceInputProps) {
                 description: meta.length > 0 ? meta.join('\n') : undefined,
                 location: locationType,
                 attendees: resolvedAttendees,
-                isUpdate
+                isUpdate,
+                isDelete
             });
 
         } catch (err) {

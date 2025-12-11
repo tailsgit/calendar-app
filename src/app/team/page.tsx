@@ -8,7 +8,6 @@ import { useSession } from 'next-auth/react';
 import MultiUserSearch from '@/components/team/MultiUserSearch';
 import toast from 'react-hot-toast';
 import UserCalendarColumn from '@/components/team/UserCalendarColumn';
-import SmartSuggestionsPanel from '@/components/smart-scheduling/SmartSuggestionsPanel';
 import TeamHeatmap from '@/components/team/TeamHeatmap';
 import UserMonthCalendar from '@/components/team/UserMonthCalendar';
 import CreateTeamEventModal from '@/components/team/CreateTeamEventModal';
@@ -55,6 +54,8 @@ function TeamCalendarContent() {
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [draftStartTime, setDraftStartTime] = useState<Date | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const [hoveredSlot, setHoveredSlot] = useState<Date | null>(null);
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; date: Date } | null>(null);
 
@@ -433,6 +434,8 @@ function TeamCalendarContent() {
                     columnCount={selectedUsers.length}
                     onSlotClick={handleSlotClick}
                     onContextMenu={handleContextMenu}
+                    hoveredSlot={hoveredSlot}
+                    onSlotHover={setHoveredSlot}
                   />
                 </div>
               ))}
@@ -449,12 +452,7 @@ function TeamCalendarContent() {
         participants={selectedUsers}
       />
 
-      {contentView === 'calendar' && timeView === 'week' && (
-        <SmartSuggestionsPanel
-          selectedUsers={selectedUsers}
-          userEvents={userEvents}
-        />
-      )}
+
 
       {/* Context Menu */}
       {contextMenu && (

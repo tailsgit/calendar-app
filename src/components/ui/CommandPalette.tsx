@@ -30,7 +30,62 @@ export default function CommandPalette() {
         return () => document.removeEventListener('keydown', down);
     }, []);
 
-    const handleVoiceResult = async (data: { title: string, start: Date, end?: Date, description?: string, location?: string, attendees?: any[], isUpdate?: boolean }) => {
+    const handleVoiceResult = async (data: { title: string, start: Date, end?: Date, description?: string, location?: string, attendees?: any[], isUpdate?: boolean, isDelete?: boolean }) => {
+        // --- DELETION LOGIC ---
+        if (data.isDelete) {
+            // Case 1: Contextual ("Cancel that")
+            if (lastCreatedEvent && /\b(that|it|meeting|event)\b/i.test(data.title)) {
+                try {
+                    const res = await fetch(`/api/events/${lastCreatedEvent.id}`, { method: 'DELETE' });
+                    if (res.ok) {
+                        setLastCreatedEvent(null);
+                        setOpen(false);
+                        router.refresh();
+                        // Ideally show toast here
+                        return;
+                    }
+                } catch (e) {
+                    console.error("Failed to delete context event", e);
+                }
+            }
+
+            // Case 2: Specific ("Cancel Lunch with Bob")
+            // We need to find the event first.
+            try {
+                // Fetch events for the target day
+                const startOfDay = new Date(data.start);
+                startOfDay.setHours(0, 0, 0, 0);
+                const endOfDay = new Date(startOfDay);
+                endOfDay.setHours(23, 59, 59, 999);
+
+                const res = await fetch(`/api/events?start=${startOfDay.toISOString()}&end=${endOfDay.toISOString()}`);
+                if (res.ok) {
+                    const events = await res.json();
+                    // Fuzzy match title
+                    const fuse = (await import('fuse.js')).default;
+                    const f = new fuse(events, { keys: ['title'], threshold: 0.4 });
+                    const results = f.search(data.title);
+
+                    if (results.length > 0) {
+                        const targetEvent = results[0].item as any;
+                        // Delete it
+                        const delRes = await fetch(`/api/events/${targetEvent.id}`, { method: 'DELETE' });
+                        if (delRes.ok) {
+                            setOpen(false);
+                            router.refresh();
+                            return;
+                        }
+                    } else {
+                        // Notify user nothing found?
+                        console.log("No matching event found to delete");
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to specific delete", e);
+            }
+            return;
+        }
+
         // CONTEXT AWARENESS: "Move that" logic
         if (data.isUpdate && lastCreatedEvent) {
             // Update the last created event
